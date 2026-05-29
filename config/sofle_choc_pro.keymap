@@ -59,12 +59,12 @@
             display-name = "macos";
 
             bindings = <
-              &tlh 1 ESC                          &kp N1          &kp N2              &kp N3    &kp N4    &kp N5                                           &kp N6     &kp N7    &kp N8     &kp N9                 &kp N0              &kp MINUS
+              &tlh 1 GRAVE                          &kp N1          &kp N2              &kp N3    &kp N4    &kp N5                                           &kp N6     &kp N7    &kp N8     &kp N9                 &kp N0              &kp MINUS
               &mt LA(LC(LG(LS(LEFT_SHIFT)))) TAB  &kp Q           &kp W               &kp E     &kp R     &kp T                                            &kp Y      &kp U     &kp I      &kp O                  &kp P               &kp BSLH
-              &sk LEFT_SHIFT                      &kp A           &kp S               &kp D     &kp F     &kp G                                            &kp H      &kp J     &kp K      &kp L                  &kp SEMI            &mt RIGHT_SHIFT SQT
-              &mt (LEFT_GUI) GRAVE            &mt LEFT_ALT Z  &mt LEFT_CONTROL X  &kp C     &kp V     &kp B            &kp LBKT    &kp RBKT        &kp N      &kp M     &kp COMMA  &mt RIGHT_CONTROL DOT  &mt RIGHT_ALT FSLH  &mt RIGHT_GUI EQUAL
-                                                                  &kp LCTRL           &kp LALT  &kp LGUI  &lt 2 BACKSPACE  &lt 3 RET     &lt (4) LA(BSPC)  &kp SPACE  &kp RGUI  &kp RALT   &kp RCTRL
-            >;
+              &mt LEFT_GUI ESC                      &kp A           &kp S               &kp D     &kp F     &kp G                                            &kp H      &kp J     &kp K      &kp L                  &kp SEMI            &mt RIGHT_ALT SQT
+              &sk LEFT_SHIFT            &kp Z  &kp X  &kp C     &kp V     &kp B            &kp LBKT    &kp RBKT        &kp N      &kp M     &kp COMMA  &kp DOT  &kp FSLH  &mt RIGHT_SHIFT EQUAL
+                                                                  &kp LCTRL           &kp LALT  &kp LGUI  &lt 3 BACKSPACE  &kp SPACE     &kp SPACE  &lt 4 RET  &kp RGUI  &kp RALT   &kp RCTRL
+            >; 
 
             label = "macos";
         };
@@ -111,7 +111,7 @@
             display-name = "nav";
 
             bindings = <
-              &kp GRAVE  &kp F1  &kp F2  &kp F3  &kp F4  &kp F5                    &kp F6     &kp F7           &kp F8       &kp F9      &kp F10          &kp F11
+              &kp ESC  &kp F1  &kp F2  &kp F3  &kp F4  &kp F5                    &kp F6     &kp F7           &kp F8       &kp F9      &kp F10          &kp F11
               &caps_word &trans  &trans  &trans  &trans  &trans                    &kp PG_UP  &kp HOME         &kp UP       &kp END     &kp PRINTSCREEN  &kp F12
               &trans     &trans  &trans  &trans  &trans  &trans                    &kp PG_DN  &kp LEFT         &kp DOWN     &kp RIGHT   &kp DEL          &kp BSPC
               &trans     &trans  &trans  &trans  &trans  &trans  &trans    &trans  &trans     &kp LC(LS(TAB))  &kp LC(TAB)  &kp C_MUTE  &kp C_VOL_DN     &kp C_VOL_UP
