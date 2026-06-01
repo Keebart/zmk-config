@@ -47,8 +47,8 @@
         compatible = "zmk,conditional-layers";
 
         adjust_layer {
-            if-layers = <3 4>;
-            then-layer = <5>;
+            if-layers = <2 3>;
+            then-layer = <4>;
         };
     };
 
@@ -63,7 +63,7 @@
               &mt LA(LC(LG(LS(LEFT_SHIFT)))) TAB  &kp Q           &kp W               &kp E     &kp R     &kp T                                            &kp Y      &kp U     &kp I      &kp O                  &kp P               &kp BSLH
               &mt LEFT_GUI ESC                      &kp A           &kp S               &kp D     &kp F     &kp G                                            &kp H      &kp J     &kp K      &kp L                  &kp SEMI            &mt RIGHT_ALT SQT
               &sk LEFT_SHIFT            &kp Z  &kp X  &kp C     &kp V     &kp B            &kp LBKT    &kp RBKT        &kp N      &kp M     &kp COMMA  &kp DOT  &kp FSLH  &mt RIGHT_SHIFT EQUAL
-                                                                  &kp LCTRL           &kp LALT  &kp LGUI  &lt 3 BACKSPACE  &kp SPACE     &kp SPACE  &lt 4 RET  &kp RGUI  &kp RALT   &kp RCTRL
+                                                                  &kp LCTRL           &kp LALT  &kp LGUI  &lt 2 SPACE  &kp BACKSPACE     &kp RET  &lt 3 SPACE  &kp RGUI  &kp RALT   &kp RCTRL
             >; 
 
             label = "macos";
@@ -75,13 +75,13 @@
               &trans                     &trans  &trans          &trans  &trans            &trans                                   &trans  &trans             &trans  &trans             &trans  &trans
               &trans                     &trans  &trans          &trans  &trans            &trans                                   &trans  &trans             &trans  &trans             &trans  &trans
               &mt LEFT_CONTROL GRAVE  &trans  &mt LEFT_GUI X  &trans  &trans            &trans  &trans    &trans                 &trans  &trans             &trans  &mt RIGHT_GUI DOT  &trans  &mt RIGHT_CONTROL EQUAL
-                                   &kp LEFT_GUI    &trans  &kp LEFT_CONTROL  &trans  &trans    &lt (4) LC(BACKSPACE)  &trans  &kp RIGHT_CONTROL  &trans  &kp RIGHT_GUI
+                                   &kp LEFT_GUI    &trans  &kp LEFT_CONTROL  &trans  &trans    &lt (3) LC(BACKSPACE)  &trans  &kp RIGHT_CONTROL  &trans  &kp RIGHT_GUI
             >;
 
             label = "windows";
         };
 
-        umlaute_layer {
+/*         umlaute_layer {
             bindings = <
               &kp GRAVE  &trans  &trans  &trans  &trans  &trans                    &trans  &trans  &trans  &trans  &trans    &kp DEL
               &caps_word &trans  &trans  &trans  &trans  &trans                    &trans  &trans  &trans  &trans  &kp LBKT  &kp RBKT
@@ -92,7 +92,7 @@
 
             label = "umlaute";
         };
-
+ */
         num_layer {
             display-name = "num";
 
@@ -111,11 +111,11 @@
             display-name = "nav";
 
             bindings = <
-              &kp ESC  &kp F1  &kp F2  &kp F3  &kp F4  &kp F5                    &kp F6     &kp F7           &kp F8       &kp F9      &kp F10          &kp F11
-              &caps_word &trans  &trans  &trans  &trans  &trans                    &kp PG_UP  &kp HOME         &kp UP       &kp END     &kp PRINTSCREEN  &kp F12
-              &trans     &trans  &trans  &trans  &trans  &trans                    &kp PG_DN  &kp LEFT         &kp DOWN     &kp RIGHT   &kp DEL          &kp BSPC
-              &trans     &trans  &trans  &trans  &trans  &trans  &trans    &trans  &trans     &kp LC(LS(TAB))  &kp LC(TAB)  &kp C_MUTE  &kp C_VOL_DN     &kp C_VOL_UP
-                                &trans  &trans  &trans  &trans  &trans    &trans  &trans     &trans           &trans       &trans
+              &kp F1  &kp F2  &kp F3  &kp F4  &kp F5                    &kp F6     &kp F7           &kp F8       &kp F9      &kp F10          &kp F11  &kp F12
+              &trans &trans  &trans  &trans  &trans  &trans                    &kp PG_UP  &kp HOME         &kp UP       &kp END     &kp PRINTSCREEN  &kp DEL
+              &trans     &trans  &trans  &trans  &trans  &trans                    &kp PG_DN  &kp LEFT         &kp DOWN     &kp RIGHT   &trans          &trans
+              &caps_word     &trans  &trans  &trans  &trans  &trans  &trans    &trans  &trans     &kp LC(LS(TAB))  &kp LC(TAB)  &kp C_MUTE  &kp C_VOL_DN     &kp C_VOL_UP
+                                &trans  &trans  &trans  &trans  &kp LG(BACKSPACE)    &trans  &trans     &trans           &trans       &trans
             >;
 
             label = "nav";
