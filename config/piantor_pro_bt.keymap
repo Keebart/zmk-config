@@ -43,14 +43,14 @@
             hold-trigger-key-positions = <KEYS_L THUMBS>;
             hold-trigger-on-release;
         };
-    };
-
-    // Hold both thumbs (SPACE=layer1 + ENTER=layer3) to reach ADJUST (layer 5).
-    conditional_layers {
-        compatible = "zmk,conditional-layers";
-        adjust {
-            if-layers = <1 3>;
-            then-layer = <5>;
+        // Generic tap/hold (en/em dash on NUM, and the bottom-right C corner):
+        // hold = first param, tap = second param.
+        ht: hold_tap {
+            compatible = "zmk,behavior-hold-tap";
+            #binding-cells = <2>;
+            flavor = "tap-preferred";
+            tapping-term-ms = <200>;
+            bindings = <&kp>, <&kp>;
         };
     };
 
@@ -62,26 +62,26 @@
 
             // | TAB  |  Q  |  W  |  E  |  R  |  T  |   Y  |  U  |  I  |  O  |  P  |  \  |
             // | CAPS | A/C | S/A | D/S | F/G |  G  |   H  | J/G | K/S | L/A | ;/C |  '  |  (home-row mods)
-            // | LGUI |  Z  |  X  |  C  |  V  |  B  |   N  |  M  |  ,  |  .  |  /  | RGUI|
-            //               | ESC | SPC/L1 | LGUI/L4 |  ENT/L3 | BSPC | RALT |
+            // | ESC  |  Z  |  X  |  C  |  V  |  B  |   N  |  M  |  ,  |  .  |  /  | Cc/Cdn |  (tap O-C-S-c / hold Ctrl-Down)
+            //               | SYS | SPC/L1 | LGUI/L4 |  ENT | BSPC | HYP |
             bindings = <
 &kp TAB    &kp Q        &kp W        &kp E        &kp R        &kp T            &kp Y      &kp U        &kp I        &kp O        &kp P           &kp BSLH
 &kp CAPS   &hml LCTL A  &hml LALT S  &hml LSFT D  &hml LGUI F  &kp G            &kp H      &hmr RGUI J  &hmr RSFT K  &hmr RALT L  &hmr RCTL SEMI  &kp SQT
-&kp LGUI   &kp Z        &kp X        &kp C        &kp V        &kp B            &kp N      &kp M        &kp COMMA    &kp DOT      &kp FSLH        &kp RGUI
-                                     &kp ESC      &lt 1 SPACE  &lt 4 LGUI       &lt 3 RET  &kp BSPC     &kp RALT
+&kp ESC    &kp Z        &kp X        &kp C        &kp V        &kp B            &kp N      &kp M        &kp COMMA    &kp DOT      &kp FSLH        &ht LC(DOWN) LA(LG(LS(C)))
+                                     &mo 5        &lt 1 SPACE  &lt 4 LGUI       &kp RET    &kp BSPC     &mo 3
             >;
         };
 
         lower_layer {
             display-name = "NUM/SYM";
 
-            // | ` | ! | @ | # | $ | % |   7 | 8 | 9 | - | / | F12 |
-            // | ~ | ^ | & | * | ( | ) |   4 | 5 | 6 | + | * |     |
+            // | ` | ! | @ | # | $ | % |   7 | 8 | 9 | - | / |  -  |
+            // | ~ | ^ | & | * | ( | ) |   4 | 5 | 6 | + | * | en/em dash |
             // |   |   | [ | ] | { | } |   1 | 2 | 3 | . | = |     |
             //                          | 0 |
             bindings = <
-&kp GRAVE  &kp EXCL   &kp AT     &kp HASH   &kp DLLR   &kp PRCNT       &kp N7     &kp N8   &kp N9   &kp MINUS  &kp FSLH   &kp F12
-&kp TILDE  &kp CARET  &kp AMPS   &kp ASTRK  &kp LPAR   &kp RPAR        &kp N4     &kp N5   &kp N6   &kp PLUS   &kp ASTRK  &trans
+&kp GRAVE  &kp EXCL   &kp AT     &kp HASH   &kp DLLR   &kp PRCNT       &kp N7     &kp N8   &kp N9   &kp MINUS  &kp FSLH   &kp MINUS
+&kp TILDE  &kp CARET  &kp AMPS   &kp ASTRK  &kp LPAR   &kp RPAR        &kp N4     &kp N5   &kp N6   &kp PLUS   &kp ASTRK  &ht LA(LS(MINUS)) LA(MINUS)
 &trans     &trans     &kp LBKT   &kp RBKT   &kp LBRC   &kp RBRC        &kp N1     &kp N2   &kp N3   &kp DOT    &kp EQUAL  &trans
                                  &trans     &trans     &trans          &kp N0     &trans   &trans
             >;
@@ -111,9 +111,9 @@
 
         extra_layer_2 {
             display-name = "NAV";
-            // Arrows + mouse move/scroll/click. Right-hand home row = mods.
+            // Arrows + mouse clicks/scroll.
             bindings = <
-&trans  &none      &none      &none          &none           &none        &none        &mmv MOVE_LEFT  &mmv MOVE_DOWN  &mmv MOVE_UP    &mmv MOVE_RIGHT  &none
+&trans  &none      &none      &none          &none           &none        &none        &none           &none           &none           &none            &none
 &trans  &kp LEFT   &kp DOWN   &kp UP         &kp RIGHT       &mkp LCLK    &mkp LCLK    &kp RGUI        &kp RSHFT       &kp RALT        &kp RCTL         &none
 &trans  &none      &none      &msc SCRL_UP   &msc SCRL_DOWN  &none        &none        &msc SCRL_UP    &msc SCRL_DOWN  &none           &none            &trans
                               &trans         &trans          &to 0        &trans       &trans          &trans
@@ -122,13 +122,13 @@
 
         extra_layer_3 {
             display-name = "ADJUST";
-            // System + media. Reach by holding BOTH thumbs (SPACE + ENTER).
-            // studio_unlock is the 3rd key on the left home row.
+            // System control (far-left thumb &mo 5). Volume on D/F/G; lock = top-right corner.
+            // studio_unlock = 3rd key on left home row. Right side = window/desktop macros.
             bindings = <
-&bt BT_SEL 0    &bt BT_SEL 1    &bt BT_SEL 2     &bt BT_SEL 3    &bt BT_SEL 4          &bt BT_CLR             &kp C_PREV        &kp C_PP          &kp C_NEXT      &kp C_MUTE         &kp C_VOL_DN     &kp C_VOL_UP
-&bootloader     &sys_reset      &studio_unlock   &none           &none                 &none                  &kp LA(LC(LEFT))  &kp LA(LC(DOWN))  &kp LA(LC(UP))  &kp LA(LC(RIGHT))  &kp LA(LC(RET))  &none
-&kp LG(LS(N4))  &kp LG(LS(N5))  &kp LA(LG(F1))   &kp LG(LC(Q))   &kp LA(LG(LS(C)))     &kp LA(LG(LS(FSLH)))   &kp LA(LC(U))     &kp LA(LC(I))     &kp LA(LC(J))   &kp LA(LC(K))      &none            &none
-                                                 &trans          &trans                &trans                 &trans            &trans            &trans
+&bt BT_SEL 0  &bt BT_SEL 1  &bt BT_SEL 2     &bt BT_SEL 3    &bt BT_SEL 4         &bt BT_CLR             &none             &none             &none           &none              &none            &kp LG(LC(Q))
+&bootloader   &sys_reset    &studio_unlock   &kp C_VOL_DN    &kp C_VOL_UP         &kp C_MUTE             &kp LA(LC(LEFT))  &kp LA(LC(DOWN))  &kp LA(LC(UP))  &kp LA(LC(RIGHT))  &kp LA(LC(RET))  &none
+&none         &none         &kp LG(LS(N4))   &kp LG(LS(N5))  &kp LA(LG(LS(C)))    &kp LA(LG(LS(FSLH)))   &kp LA(LC(U))     &kp LA(LC(I))     &kp LA(LC(J))   &kp LA(LC(K))      &none            &none
+                                             &trans          &trans               &trans                 &trans            &trans            &trans
             >;
         };
 
