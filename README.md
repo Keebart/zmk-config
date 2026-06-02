@@ -44,13 +44,13 @@ ESC   Z    X    C    V    B   │   N    M    ,    .    /    ⌥⌘⇧C / ⌃↓
 ### 1 · NUM/SYM
 
 ```
-`    !    @    #    $    %    │   7    8    9    -    /    –/—
-~    ^    &    *    (    )    │   4    5    6    +    *    -
-·    ·    [    ]    {    }    │   1    2    3    .    =    ·
+`    !    @    #    $    %    │   7    8    9    -    /    ·
+~    ^    &    *    (    )    │   4    5    6    +    *    ·
+–/—  -    [    ]    {    }    │   1    2    3    .    =    ·
             ·    ·    ·       │   0    ·    ·
 ```
 
-- `–/—` : **tap** en-dash (`⌥-`), **hold** em-dash (`⌥⇧-`).
+- Bottom-left corner: `–/—` = **tap** en-dash (`⌥-`) / **hold** em-dash (`⌥⇧-`); `-` to its right = hyphen.
 
 ### 3 · APPS
 
