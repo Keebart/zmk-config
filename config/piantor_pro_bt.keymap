@@ -124,7 +124,7 @@
             // studio_unlock = 3rd key on left home row. Right side = window/desktop macros.
             bindings = <
 &bt BT_SEL 0  &bt BT_SEL 1  &bt BT_SEL 2     &bt BT_SEL 3    &bt BT_SEL 4         &bt BT_CLR             &none             &none             &none           &none              &none            &kp LG(LC(Q))
-&bootloader   &sys_reset    &studio_unlock   &kp C_VOL_DN    &kp C_VOL_UP         &kp C_MUTE             &kp LA(LC(LEFT))  &kp LA(LC(DOWN))  &kp LA(LC(UP))  &kp LA(LC(RIGHT))  &kp LA(LC(RET))  &none
+&bootloader   &sys_reset    &studio_unlock   &kp C_VOL_DN    &kp C_VOL_UP         &kp C_MUTE             &kp LA(LC(RET))   &kp LA(LC(LEFT))  &kp LA(LC(DOWN)) &kp LA(LC(UP))     &kp LA(LC(RIGHT)) &none
 &none         &none         &kp LG(LS(N5))   &kp LG(LS(N4))  &kp LA(LG(LS(FSLH))) &none                  &kp LA(LC(U))     &kp LA(LC(I))     &kp LA(LC(J))   &kp LA(LC(K))      &none            &none
                                              &trans          &trans               &trans                 &trans            &trans            &trans
             >;
