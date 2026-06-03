@@ -74,12 +74,12 @@
             display-name = "NUM/SYM";
 
             // | ` | ! | @ | # | $ | % |   7 | 8 | 9 | - | / |     |
-            // | ~ | ^ | & | * | ( | ) |   4 | 5 | 6 | + | * |     |   (–/— & - moved to bottom-left)
+            // | ~ | ^ | & | * | ( | ) |   4 | 5 | 6 | + | * |  _  |   (–/— & - moved to bottom-left)
             // |   |   | [ | ] | { | } |   1 | 2 | 3 | . | = |     |
             //                          | 0 |
             bindings = <
 &kp GRAVE  &kp EXCL   &kp AT     &kp HASH   &kp DLLR   &kp PRCNT       &kp N7     &kp N8   &kp N9   &kp MINUS  &kp FSLH   &trans
-&kp TILDE  &kp CARET  &kp AMPS   &kp ASTRK  &kp LPAR   &kp RPAR        &kp N4     &kp N5   &kp N6   &kp PLUS   &kp ASTRK  &trans
+&kp TILDE  &kp CARET  &kp AMPS   &kp ASTRK  &kp LPAR   &kp RPAR        &kp N4     &kp N5   &kp N6   &kp PLUS   &kp ASTRK  &kp UNDER
 &ht LA(LS(MINUS)) LA(MINUS)  &kp MINUS  &kp LBKT   &kp RBKT   &kp LBRC   &kp RBRC        &kp N1     &kp N2   &kp N3   &kp DOT    &kp EQUAL  &trans
                                  &trans     &trans     &trans          &kp N0     &trans   &trans
             >;
