@@ -121,10 +121,10 @@
         extra_layer_3 {
             display-name = "SYSTEM";
             // System control (far-left thumb &mo 5). Volume on D/F/G; lock = top-right corner.
-            // studio_unlock = 3rd key on left home row. Right side = window/desktop macros.
+            // Bottom-left: ⌘⇧5/⌘⇧4 screenshots + ⌥⌘⇧/ mac shortcut. Right side = window/desktop macros.
             bindings = <
-&bt BT_SEL 0  &bt BT_SEL 1  &bt BT_SEL 2     &bt BT_SEL 3    &bt BT_SEL 4         &bt BT_CLR             &none             &kp LA(LC(U))     &kp LA(LC(J))   &kp LA(LC(I))      &kp LA(LC(K))    &kp LG(LC(Q))
-&bootloader   &sys_reset    &studio_unlock   &kp C_VOL_DN    &kp C_VOL_UP         &kp C_MUTE             &kp LA(LC(RET))   &kp LA(LC(LEFT))  &kp LA(LC(DOWN)) &kp LA(LC(UP))     &kp LA(LC(RIGHT)) &none
+&none         &none         &none            &none           &none                &none                  &none             &kp LA(LC(U))     &kp LA(LC(J))   &kp LA(LC(I))      &kp LA(LC(K))    &kp LG(LC(Q))
+&none         &none         &none            &kp C_VOL_DN    &kp C_VOL_UP         &kp C_MUTE             &kp LA(LC(RET))   &kp LA(LC(LEFT))  &kp LA(LC(DOWN)) &kp LA(LC(UP))     &kp LA(LC(RIGHT)) &none
 &none         &none         &kp LG(LS(N5))   &kp LG(LS(N4))  &kp LA(LG(LS(FSLH))) &none                  &none             &none             &none           &none              &none            &none
                                              &trans          &trans               &trans                 &trans            &trans            &trans
             >;
