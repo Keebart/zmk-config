@@ -63,7 +63,7 @@
               &mt LA(LC(LG(LS(LEFT_SHIFT)))) TAB  &kp Q           &kp W               &kp E     &kp R     &kp T                                            &kp Y      &kp U     &kp I      &kp O                  &kp P               &kp BSLH
               &mt LEFT_GUI ESC                      &kp A           &kp S               &kp D     &kp F     &kp G                                            &kp H      &kp J     &kp K      &kp L                  &kp SEMI            &mt RIGHT_ALT SQT
               &sk LEFT_SHIFT            &kp Z  &kp X  &kp C     &kp V     &kp B            &kp LBKT    &kp RBKT        &kp N      &kp M     &kp COMMA  &kp DOT  &kp FSLH  &mt RIGHT_SHIFT EQUAL
-                                                                  &kp LCTRL           &kp LALT  &kp LGUI  &lt 1 SPACE  &kp BACKSPACE     &kp RET  &lt 2 SPACE  &kp RGUI  &kp RALT   &kp RCTRL
+                                                                  &lt LCTRL LG(SPACE)   &kp LALT  &kp LGUI  &lt 1 BACKSPACE  &kp RET     &kp LG(BACKSPACE)  &lt 2 SPACE  &kp RGUI  &kp RALT   &kp RCTRL
             >; 
 
             label = "macos";
@@ -91,7 +91,7 @@
               &caps_word &kp LG(W)  &kp LA(LG(LEFT))  &kp LG(T)  &kp LA(LG(RIGHT))  &trans                    &kp PG_UP  &kp HOME         &kp UP       &kp END     &kp PRINTSCREEN  &kp DEL
               &trans     &trans  &trans  &kp LG(TAB)  &trans  &trans                    &kp PG_DN  &kp LEFT         &kp DOWN     &kp RIGHT   &trans          &trans
               &trans     &kp LG(Z)  &kp LG(X)  &kp LG(C)  &kp LG(V)  &trans  &trans    &trans  &kp LS(LG(O)) &kp LS(LG(M))  &kp LS(LG(H))  &kp LC(LG(SPACE))  &trans &trans
-                                &trans  &trans  &kp LC(LALT)  &trans  &kp LG(BACKSPACE)    &trans  &trans     &trans           &trans       &trans
+                                &trans  &trans  &kp LC(LALT)  &trans  &kp RET    &trans  &trans     &trans           &trans       &trans
             >;
 
             label = "nav";
