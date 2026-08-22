@@ -63,7 +63,7 @@
               &mt LA(LC(LG(LS(LEFT_SHIFT)))) TAB  &kp Q           &kp W               &kp E     &kp R     &kp T                                            &kp Y      &kp U     &kp I      &kp O                  &kp P               &kp BSLH
               &mt LEFT_GUI ESC                      &kp A           &kp S               &kp D     &kp F     &kp G                                            &kp H      &kp J     &kp K      &kp L                  &kp SEMI            &mt RIGHT_ALT SQT
               &sk LEFT_SHIFT            &kp Z  &kp X  &kp C     &kp V     &kp B            &kp LBKT    &kp RBKT        &kp N      &kp M     &kp COMMA  &kp DOT  &kp FSLH  &mt RIGHT_SHIFT EQUAL
-                                                                  &lt LCTRL LG(SPACE)   &kp LALT  &kp LGUI  &lt 1 BACKSPACE  &kp RET     &kp LG(BACKSPACE)  &lt 2 SPACE  &kp RGUI  &kp RALT   &kp RCTRL
+                                                                  &lt LCTRL LG(SPACE)   &kp LALT  &kp LGUI  &lt 1 BACKSPACE  &kp RET     &kp LA(BACKSPACE)  &lt 2 SPACE  &kp RGUI  &kp RALT   &kp RCTRL
             >; 
 
             label = "macos";
