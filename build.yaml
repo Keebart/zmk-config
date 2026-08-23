@@ -1,13 +1,11 @@
 # This file generates the GitHub Actions matrix.
-# Only the Sofle Choc Pro BT — the other Keebart boards are removed.
+# Only the Sofle Choc Pro BT, and without a display — the board has no nice_view module.
 ---
 include:
   - board: sofle_choc_pro_left
     snippet: studio-rpc-usb-uart
-    shield: nice_view_disp
     cmake-args: -DCONFIG_ZMK_STUDIO=y
   - board: sofle_choc_pro_right
-    shield: nice_view_disp
     snippet: studio-rpc-usb-uart
 
   - board: sofle_choc_pro_left
