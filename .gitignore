@@ -1,1 +1,4 @@
 .DS_Store
+
+# Zwischendatei von draw_keymap.sh
+img/keymap.yaml

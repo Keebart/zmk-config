@@ -1,0 +1,8 @@
+# Einstellungen fuer keymap-drawer. Nur die Beschriftungen, die das Werkzeug
+# nicht selbst kennt. Siehe https://github.com/caksoylar/keymap-drawer
+parse_config:
+  raw_binding_map:
+    "&caps_word": CAPS
+    "&studio_unlock": STUDIO
+    "&bootloader": BOOT
+    "&sys_reset": RESET
