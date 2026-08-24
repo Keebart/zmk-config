@@ -20,46 +20,86 @@ ADJUST: beide Daumen greifen nach innen. Bluetooth, RGB und Bootloader.
 
 ![ADJUST-Ebene](img/keymap-adjust.png)
 
-## Firmware bauen
+## Belegung aendern ohne Flashen
 
-GitHub Actions baut die Firmware bei jedem Push. Ein lokaler Build ist nicht noetig.
+Das ist der schnellste Weg. Diese Config aktiviert ZMK Studio. Studio aendert die Belegung live
+ueber USB. Kein Build, kein Flashen, kein Neustart.
 
-1. Aenderungen committen und pushen.
-2. Auf GitHub den Reiter **Actions** oeffnen.
-3. Den obersten Lauf anklicken und warten, bis er gruen ist. Das dauert etwa 5 Minuten.
-4. Unten unter **Artifacts** die Datei `firmware` herunterladen und entpacken.
+Einmalig noetig: Zugriff auf die serielle Schnittstelle.
 
-Das Archiv enthaelt vier Dateien:
+```sh
+sudo usermod -aG uucp $USER
+```
 
-| Datei | Zweck |
+Danach einmal ab- und wieder anmelden.
+
+Dann jedes Mal:
+
+1. Schliesse die **linke** Haelfte per USB-C an. Sie ist die zentrale Haelfte.
+2. Oeffne <https://zmk.studio> in Chrome oder Edge. Firefox kann kein WebSerial.
+3. Klicke **Connect** und waehle das serielle Geraet.
+4. Entsperre die Tastatur: halte beide inneren Daumentasten (NAV + SYM) und druecke die linke
+   Shift-Taste. Ohne diesen Griff bleibt Studio schreibgeschuetzt.
+5. Aendere die Tasten und speichere. Die Aenderung gilt sofort.
+
+Studio kann Tasten neu belegen und zwischen den Ebenen verschieben. Es kann **keine** neuen
+Verhalten anlegen, keine Combos und nichts in `config/sofle_choc_pro.conf` aendern. Dafuer
+brauchst du einen neuen Build.
+
+> Studio schreibt seine Belegung in den Flash-Speicher. Diese hat Vorrang vor der kompilierten.
+> Ein spaeter geflashtes `.uf2` bleibt dann unsichtbar. Der naechste Abschnitt loest das.
+
+## Firmware aufspielen
+
+GitHub Actions baut die Firmware bei jedem Push. Danach erledigt ein Skript den Rest:
+
+```sh
+git push
+./flash.sh
+```
+
+Das Skript holt den neuesten gruenen Build **deines aktuellen Branches**, wartet auf das
+Bootloader-Laufwerk, kopiert die richtige Datei und macht danach mit der zweiten Haelfte weiter.
+Du musst nur zweimal auf Reset druecken, wenn es dazu auffordert.
+
+| Aufruf | Wirkung |
 |---|---|
-| `sofle_choc_pro_left-zmk.uf2` | linke Haelfte, normale Firmware |
-| `sofle_choc_pro_right-zmk.uf2` | rechte Haelfte, normale Firmware |
-| `settings_reset-sofle_choc_pro_left-zmk.uf2` | linke Haelfte, loescht den Speicher |
-| `settings_reset-sofle_choc_pro_right-zmk.uf2` | rechte Haelfte, loescht den Speicher |
+| `./flash.sh` | beide Haelften nacheinander |
+| `./flash.sh left` | nur die linke Haelfte |
+| `./flash.sh right` | nur die rechte Haelfte |
+| `./flash.sh --reset` | beide Haelften mit dem `settings_reset`-Build |
 
-## Firmware flashen
+Das Skript braucht `gh` (angemeldet mit `gh auth login`) und `udisksctl` aus `udisks2`.
 
-Flashe immer eine Haelfte nach der anderen.
+### Von Hand
+
+Falls das Skript nicht laufen kann:
+
+1. Lade auf GitHub unter **Actions** beim obersten gruenen Lauf das Artefakt `firmware`
+   herunter und entpacke es. Es enthaelt vier Dateien:
+
+   | Datei | Zweck |
+   |---|---|
+   | `sofle_choc_pro_left-zmk.uf2` | linke Haelfte, normale Firmware |
+   | `sofle_choc_pro_right-zmk.uf2` | rechte Haelfte, normale Firmware |
+   | `settings_reset-sofle_choc_pro_left-zmk.uf2` | linke Haelfte, loescht den Speicher |
+   | `settings_reset-sofle_choc_pro_right-zmk.uf2` | rechte Haelfte, loescht den Speicher |
+
+2. Schliesse **eine** Haelfte per USB-C an.
+3. Druecke zweimal schnell auf den Reset-Knopf. Alternativ: halte NAV + SYM und druecke `Z` fuer
+   die linke Haelfte, `/` fuer die rechte.
+4. Ein USB-Laufwerk erscheint. Kopiere die passende `.uf2`-Datei darauf.
+5. Das Laufwerk verschwindet von selbst. Die Haelfte startet neu. Das ist das Zeichen fuer Erfolg.
+6. Wiederhole Schritt 2 bis 5 mit der anderen Haelfte.
 
 > **Achtung:** Spiele nie die `left`-Datei auf die rechte Haelfte. Die Haelften erkennen sich
-> danach nicht mehr. Der Fehler laesst sich beheben, kostet aber einen zweiten Durchlauf.
+> danach nicht mehr.
 
-1. Schliesse **eine** Haelfte per USB-C an den Rechner an.
-2. Starte den Bootloader. Zwei Wege:
-   - Druecke zweimal schnell hintereinander auf den Reset-Knopf der Haelfte.
-   - Oder halte beide inneren Daumentasten (NAV + SYM) und druecke `Z` fuer die linke
-     Haelfte, `/` fuer die rechte.
-3. Ein USB-Laufwerk erscheint im Dateimanager.
-4. Kopiere die passende `.uf2`-Datei auf dieses Laufwerk.
-5. Das Laufwerk verschwindet von selbst. Die Haelfte startet neu. Das ist das Zeichen fuer Erfolg.
-6. Ziehe das Kabel ab. Wiederhole Schritt 1 bis 5 mit der anderen Haelfte.
+Beide Haelften verbinden sich nach dem Flashen von selbst wieder.
 
-Beide Haelften verbinden sich danach von selbst wieder.
-
-Zum Schluss die Tastatur mit dem Rechner koppeln: Halte NAV + SYM und druecke eine der Tasten
-`1` bis `5`. Jede Taste ist ein Bluetooth-Profil. `` ` `` loescht das aktive Profil.
-NAV + SYM + `Backspace` schaltet zwischen USB und Bluetooth um.
+Zum Koppeln mit dem Rechner: Halte NAV + SYM und druecke eine der Tasten `1` bis `5`. Jede Taste
+ist ein Bluetooth-Profil. `` ` `` loescht das aktive Profil. NAV + SYM + `Backspace` schaltet
+zwischen USB und Bluetooth um.
 
 ## Wenn die neue Belegung nicht erscheint
 
@@ -69,11 +109,13 @@ Eine neu geflashte Keymap bleibt dann unsichtbar.
 
 So loescht du den Speicher:
 
-1. Flashe `settings_reset-sofle_choc_pro_left-zmk.uf2` auf die linke Haelfte.
-2. Flashe `settings_reset-sofle_choc_pro_right-zmk.uf2` auf die rechte Haelfte.
-3. Flashe danach beide normalen `.uf2`-Dateien erneut.
+```sh
+./flash.sh --reset   # loescht den Speicher beider Haelften
+./flash.sh           # spielt die normale Firmware wieder auf
+```
 
-Der Reset loescht auch alle Bluetooth-Profile. Koppel die Tastatur danach neu.
+Der Reset loescht auch alle Bluetooth-Profile und jede in Studio gespeicherte Belegung. Koppel
+die Tastatur danach neu.
 
 ## Keymap aendern
 
