@@ -1,0 +1,133 @@
+/*
+ * Gallium + Seniply  —  42-key (Piantor Pro BT, 6-column)
+ *
+ * 字母层：Gallium colstag
+ * 层系统：Seniply（stevep99），按其 KMonad 参考实现逐键移植
+ *   - 无 home row mods / 无 mod-tap，全部由拇指切层
+ *   - 修饰键为 sticky（一次性），也可长按与导航键组合
+ *
+ * 这个文件只包含 behaviors + keymap 节点，不含任何板级内容，
+ * 所以将来做 dongle 时可以被 dongle 的 .keymap 原样 #include。
+ *
+ * 键位编号（Piantor 42 键，阅读顺序）:
+ *    0  1  2  3  4  5      6  7  8  9 10 11
+ *   12 13 14 15 16 17     18 19 20 21 22 23
+ *   24 25 26 27 28 29     30 31 32 33 34 35
+ *            36 37 38     39 40 41
+ *   0/12/24 与 11/23/35 是外侧小指列（36 键版没有这一列）
+ */
+
+// 注意：层索引由 keymap 里节点的出现顺序决定，不是由这些数字决定。
+// 两者必须一致，且 GAME 必须排在其它层之前，否则在 GAME 里按 SYM/NUM 会被 GAME 自己盖住。
+#define BASE 0
+#define GAME 1
+#define EXT  2
+#define SYM  3
+#define NUM  4
+#define FUN  5
+
+// Override ZMK's built-in sticky-key behavior from <behaviors.dtsi>.
+// Do not define another `sk:` node label: node labels must be unique.
+&sk {
+    release-after-ms = <1500>;
+    ignore-modifiers;
+};
+
+/ {
+    behaviors {
+        // Seniply 用 1500ms 的 sticky。不加 quick-release：
+        // 这样长按修饰键 + 鼠标点击/拖拽时修饰键会一直保持。
+        // 点一下，接下来这个词自动大写，遇到空格自动关闭。
+        // 字母和数字自动延续；加了 MINUS 以支持 KEBAB-CASE。
+        // 数字不受 Shift 影响，所以 RETRY_2 里的 2 还是 2。
+        caps_w: caps_word_code {
+            compatible = "zmk,behavior-caps-word";
+            display-name = "Caps Word";
+            #binding-cells = <0>;
+            continue-list = <UNDERSCORE MINUS BACKSPACE DELETE>;
+        };
+
+    };
+
+    keymap {
+        compatible = "zmk,keymap";
+
+        base_layer {
+            display-name = "GALLIUM";
+            // ┌─────┬───┬───┬───┬───┬───┐   ┌───┬───┬───┬───┬───┬─────┐
+            // │ ESC │ B │ L │ D │ C │ V │   │ J │ Y │ O │ U │ , │BSPC │
+            // │ TAB │ N │ R │ T │ S │ G │   │ P │ H │ A │ E │ I │ RET │
+            // │CTRL │ X │ Q │ M │ W │ Z │   │ K │ F │ ' │ ; │ . │SHIFT│
+            // └─────┴───┴───┴───┴───┴───┘   └───┴───┴───┴───┴───┴─────┘
+            //              NUM  EXT  SHIFT   SPC  SYM  F16
+            bindings = <
+&kp ESC    &kp B  &kp L  &kp D  &kp C  &kp V      &kp J  &kp Y  &kp O     &kp U     &kp COMMA  &kp BSPC
+&kp TAB    &kp N  &kp R  &kp T  &kp S  &kp G      &kp P  &kp H  &kp A     &kp E     &kp I      &kp RET
+&kp LCTRL  &kp X  &kp Q  &kp M  &kp W  &kp Z      &kp K  &kp F  &kp SQT   &kp SEMI  &kp DOT    &kp RSHFT
+                      &mo NUM  &mo EXT  &kp LSHFT      &kp SPACE  &mo SYM  &kp F16
+            >;
+        };
+
+        game_layer {
+            display-name = "QWERTY";
+            // 游戏 / 借别人电脑 / 用别人快捷键时用。从 FUN 层右下角进，
+            // 右外拇指键退回 Gallium。拇指恢复成常规 Ctrl / Alt / 空格。
+            bindings = <
+&kp ESC    &kp Q  &kp W  &kp E  &kp R  &kp T      &kp Y  &kp U  &kp I      &kp O    &kp P     &kp BSPC
+&kp TAB    &kp A  &kp S  &kp D  &kp F  &kp G      &kp H  &kp J  &kp K      &kp L    &kp SEMI  &kp RET
+&kp LSHFT  &kp Z  &kp X  &kp C  &kp V  &kp B      &kp N  &kp M  &kp COMMA  &kp DOT  &kp FSLH  &kp LCTRL
+                      &kp LCTRL  &kp LALT  &kp SPACE      &kp SPACE  &mo NUM  &to BASE
+            >;
+        };
+
+        extend_layer {
+            display-name = "EXTEND";
+            // 左手主行 = sticky 修饰键（Alt / Win / Shift / Ctrl / AltGr）
+            // 右手 = 导航；Backspace 落在右食指，Delete 落在右小指主行
+            // 例：Ctrl+A = EXT + t(Ctrl位) + a ;  Alt+Tab = EXT + n(Alt位) + ,位
+            bindings = <
+&trans  &kp ESC     &kp LA(LEFT)  &kp LC(F)    &kp LA(RIGHT)  &kp INS        &kp PG_UP  &kp HOME   &kp UP    &kp END    &caps_w    &trans
+&trans  &sk LALT    &sk LGUI      &sk LSHFT    &sk LCTRL      &sk RALT       &kp PG_DN  &kp LEFT   &kp DOWN  &kp RIGHT  &kp DEL    &trans
+&trans  &kp LC(Z)   &kp LC(X)     &kp LC(C)    &kp LGUI       &kp LC(V)      &kp RET    &kp BSPC   &kp TAB   &kp K_APP  &kp PSCRN  &trans
+                                  &trans  &trans  &mo NUM          &trans  &mo FUN  &trans
+            >;
+        };
+
+        symbol_layer {
+            display-name = "SYMBOL";
+            // US 排布。左手主行同样是 sticky 修饰键，方便 Ctrl+= 这类组合。
+            // 括号按手指分配：( ) 都在食指，{ } 都在中指，[ ] 都在无名指。
+            // 主行放的是左括号 —— IDE 会自动补右括号，左括号用得更多。
+            bindings = <
+&trans  &kp EXCL   &kp AT     &kp HASH   &kp DLLR   &kp PRCNT      &kp EQUAL  &kp GRAVE  &kp COLON  &kp SEMI   &kp PLUS   &trans
+&trans  &sk LALT   &sk LGUI   &sk LSHFT  &sk LCTRL  &kp CARET      &kp ASTRK  &kp LPAR   &kp LBRC   &kp LBKT   &kp MINUS  &trans
+&trans  &kp BSLH   &kp PIPE   &kp FSLH   &kp TILDE  &kp AMPS       &kp DQT    &kp RPAR   &kp RBRC   &kp RBKT   &kp UNDER  &trans
+                                  &trans  &mo FUN  &mo NUM         &trans  &trans  &trans
+            >;
+        };
+
+        number_layer {
+            display-name = "NUMBER";
+            // 右手小键盘式排布；左手主行仍是修饰键（Ctrl+4 这类）
+            // 外侧列在本层是蓝牙配置位，需要按住 NUM 才能碰到
+            bindings = <
+&bt BT_SEL 0  &trans     &trans     &trans     &trans     &kp KP_NUM     &kp EQUAL  &kp N7  &kp N8  &kp N9  &kp PLUS   &bt BT_SEL 3
+&bt BT_SEL 1  &sk LALT   &sk LGUI   &sk LSHFT  &sk LCTRL  &sk RALT       &kp ASTRK  &kp N4  &kp N5  &kp N6  &kp MINUS  &bt BT_SEL 4
+&bt BT_SEL 2  &trans     &kp K_APP  &kp TAB    &kp BSPC   &kp RET        &kp N0     &kp N1  &kp N2  &kp N3  &kp FSLH   &bt BT_CLR
+                                    &trans  &trans  &trans         &trans  &trans  &trans
+            >;
+        };
+
+        function_layer {
+            display-name = "FUNCTION";
+            // 由 EXT + SYM 两个拇指键同时按住进入（Seniply 原设计）
+            // 右手 F 键按小键盘方位排列：F1-F3 底排，F4-F6 主行，F7-F9 顶排
+            bindings = <
+&ext_power EP_TOG  &kp C_STOP  &kp C_PREV     &kp C_PP       &kp C_NEXT   &kp C_BRI_DN      &kp F12  &kp F7  &kp F8  &kp F9  &kp SLCK   &trans
+&kp CAPS           &sk LALT    &sk LGUI       &sk LSHFT      &sk LCTRL    &kp C_BRI_UP      &kp F11  &kp F4  &kp F5  &kp F6  &to BASE   &trans
+&sys_reset         &kp C_MUTE  &kp C_VOL_DN   &kp LC(LS(C))  &kp C_VOL_UP &kp LC(LS(V))     &kp F10  &kp F1  &kp F2  &kp F3  &to GAME   &trans
+                                   &studio_unlock  &trans  &trans       &out OUT_TOG  &trans  &bootloader
+            >;
+        };
+    };
+};
