@@ -66,7 +66,7 @@
             display-name = "LINUX";
             bindings = <
   &kp Q          &kp W         &kp E          &kp R        &kp T  &kp C_MUTE        &kp C_PP        &kp Y          &kp U        &kp I         &kp O        &kp P
-  &hml LSHIFT A  &hml LCTRL S  &hml LALT D    &hml LGUI F  &kp G  &mo CONNECTIVITY  &studio_unlock  &kp H          &hmr LGUI J  &hmr LCTRL K  &hmr LALT L  &hmr RSHIFT L_SQT
+  &hml LSHIFT A  &hml LCTRL S  &hml LALT D    &hml LGUI F  &kp G  &mo CONNECTIVITY  &studio_unlock  &kp H          &hmr LGUI J  &hmr LCTRL K  &hmr LALT L  &hmr RSHIFT Z
   &kp Z          &kp X         &kp C          &kp V        &kp B                                    &kp N          &kp M        &kp COMMA     &kp DOT      &kp MINUS
                                &mo SYMBOLS    &kp SPACE    &lt MEDIA ESCAPE                         &kp BACKSPACE  &kp RET      &mo SYMBOLS
             >;
