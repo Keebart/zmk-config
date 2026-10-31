@@ -38,7 +38,10 @@ bool ks_store_load(struct ks_store *s, struct ks_state *state) {
         const struct ks_config *c=&s->banks[b];
         bool old=c->version==3;
         bool v4=c->version==4;
-        size_t bytes=old ? offsetof(struct ks_config,dances)+4 : v4 ? offsetof(struct ks_config,overrides)+4 : sizeof(*c);
+        bool v5=c->version==5;
+        bool v6=c->version==6;
+        bool v7=c->version==7;
+        size_t bytes=old ? offsetof(struct ks_config,dances)+4 : v4 ? offsetof(struct ks_config,overrides)+4 : v5 ? offsetof(struct ks_config,locales)+4 : v6 ? offsetof(struct ks_config,locales)+512+4 : v7 ? offsetof(struct ks_config,locales)+512+sizeof(c->repeats)+4 : sizeof(*c);
         unsigned chunks=(bytes+KS_STORE_CHUNK-1)/KS_STORE_CHUNK;
         if(s->received[b] < ((1U<<chunks)-1))continue;
         bool complete=true;
@@ -49,14 +52,17 @@ bool ks_store_load(struct ks_store *s, struct ks_state *state) {
         if(!complete)continue;
         uint32_t stored_crc=0;memcpy(&stored_crc,(uint8_t *)c+bytes-4,4);
         if(stored_crc!=ks_crc(c,bytes-4) || s->heads[b][0]!=c->generation || s->heads[b][1]!=stored_crc)continue;
-        if(old || v4) {
+        if(old || v4 || v5 || v6 || v7) {
             // Boot-time conversion uses existing transaction scratch. Keep the
             // raw bank intact so repeated loads and interrupted upgrades are safe.
             state->staged=*c;
             if(old){memset(state->staged.dances,0,sizeof(state->staged.dances));
             for(unsigned i=0;i<KD_COUNT;i++)state->staged.dances[i].term=200;}
-            memset(state->staged.overrides,0,sizeof(state->staged.overrides));
-            state->staged.version=5;
+            if(old||v4)memset(state->staged.overrides,0,sizeof(state->staged.overrides));
+            if(v7)memmove(state->staged.repeats,(const uint8_t *)c+offsetof(struct ks_config,locales)+512,sizeof(state->staged.repeats));
+            else memset(state->staged.repeats,0,sizeof(state->staged.repeats));
+            if(v6||v7){if(!ksl_upgrade(state->staged.locales,c->locales))continue;}else ksl_default(state->staged.locales);
+            state->staged.version=8;
             state->staged.crc=ks_crc(&state->staged,offsetof(struct ks_config,crc));
             c=&state->staged;
         }

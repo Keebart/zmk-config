@@ -2,6 +2,7 @@
 #include "override_engine/process_key_override.h"
 #include "override_engine/quantum.h"
 #include <string.h>
+#include "locales/locale.h"
 static const struct ks_override *entries;
 static const struct ks_override_io *io;
 static key_override_t rules[KS_OVERRIDE_COUNT];
@@ -31,8 +32,10 @@ void add_key(uint8_t c){io->press(c);}
 void del_key(uint8_t c){io->release(c);}
 void register_code(uint8_t c){io->press(c);io->send();}
 void unregister_code(uint8_t c){io->release(c);io->send();}
-void register_code16(uint16_t c){uint8_t m=extract_mod_bits(c);if(m)io->shortcut(m);register_code(c&255);}
+void register_code16(uint16_t c){if(ksl_character(c)){if(io->character)io->character(c,true);return;}uint8_t m=extract_mod_bits(c);if(m)io->shortcut(m);register_code(c&255);}
 bool ks_override_process(uint16_t c,uint8_t layer,bool down){keyrecord_t r={.event={.key={.row=layer},.pressed=down}};return process_key_override(c,&r);}
 void ks_override_tick(void){key_override_task();}
 bool ks_override_pending(void){return ks_override_engine_pending();}
 void ks_override_cancel(void){if(io)ks_override_engine_reset();}
+
+void ksl_override_release(uint16_t c){if(ksl_character(c)){if(io->character)io->character(c,false);}else unregister_code(c);}

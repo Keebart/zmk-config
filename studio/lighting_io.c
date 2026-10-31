@@ -175,7 +175,7 @@ static bool maintain_peer(bool streaming) {
         atomic_set(&reading_release,1);release_deadline=now+3000;release_retry=now+250;
         if (bt_gatt_read(peer,&release_read))atomic_clear(&reading_release);
     }
-    if ((uint32_t)atomic_get(&peer_version)==KEEBART_RELEASE_ID && atomic_get(&peer_schema)==5)
+    if ((uint32_t)atomic_get(&peer_version)==KEEBART_RELEASE_ID && atomic_get(&peer_schema)==7)
         atomic_set(&handle,atomic_get(&candidate_handle));
     return changed;
 }
@@ -227,7 +227,7 @@ static ssize_t receive(struct bt_conn *conn, const struct bt_gatt_attr *attr, co
 }
 static ssize_t read_release(struct bt_conn *conn,const struct bt_gatt_attr *attr,void *buf,
                             uint16_t length,uint16_t offset) {
-    uint8_t record[12];keebart_release(record,KS_MODEL_ID,2,5);
+    uint8_t record[12];keebart_release(record,KS_MODEL_ID,2,8);
     return bt_gatt_attr_read(conn,attr,buf,length,offset,record,sizeof(record));
 }
 BT_GATT_SERVICE_DEFINE(keebart_led_service,

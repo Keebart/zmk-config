@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include "hardware.h"
 #include "macro_vm.h"
+#include "locales/locale.h"
+#include "locales/alt_repeat.h"
 #include "tap_dance.h"
 #include "override_bridge.h"
 #define KS_LAYERS 16
@@ -14,8 +16,8 @@
 #define KS_TERM_AT (KS_COMBO_AT + KS_COMBOS * 5)
 #define KS_COUNT (KS_TERM_AT + 1)
 #define KS_PALETTE_SIZE (KS_LAYERS * KS_KEYS * 7)
-#define KS_DATA_SIZE (KS_COUNT * 2 + 6 + KS_PALETTE_SIZE + 4 + KM_BYTES + KD_COUNT * 10 + KS_OVERRIDE_COUNT * 10)
-#define KS_CAPABILITIES 511
+#define KS_DATA_SIZE (KS_COUNT * 2 + 6 + KS_PALETTE_SIZE + 4 + KM_BYTES + KD_COUNT * 10 + KS_OVERRIDE_COUNT * 10 + KSL_BYTES + KAR_COUNT * 6)
+#define KS_CAPABILITIES 1023
 struct ks_config {
     uint32_t version;
     uint32_t generation;
@@ -26,6 +28,8 @@ struct ks_config {
     uint8_t macros[KM_BYTES];
     struct kd_entry dances[KD_COUNT];
     struct ks_override overrides[KS_OVERRIDE_COUNT];
+    uint8_t locales[KSL_BYTES];
+    struct kar_rule repeats[KAR_COUNT];
     uint32_t crc;
 };
 struct ks_state {

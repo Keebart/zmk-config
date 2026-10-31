@@ -1,4 +1,5 @@
 if(CONFIG_KEEBART_STUDIO)
+  target_sources(app PRIVATE ${CMAKE_CURRENT_LIST_DIR}/locales/alt_repeat.c ${CMAKE_CURRENT_LIST_DIR}/locales/locale.c ${CMAKE_CURRENT_LIST_DIR}/locales/locale_runtime.c)
   target_sources(app PRIVATE ${CMAKE_CURRENT_LIST_DIR}/settings_guard.c ${CMAKE_CURRENT_LIST_DIR}/device_name.c ${CMAKE_CURRENT_LIST_DIR}/device_name_port.c)
   zephyr_ld_options(-Wl,--wrap=zmk_behavior_invoke_binding -Wl,--wrap=settings_load -Wl,--wrap=settings_load_subtree
                       -Wl,--wrap=settings_load_subtree_direct -Wl,--wrap=settings_save_one)
@@ -17,4 +18,9 @@ if(CONFIG_KEEBART_STUDIO OR CONFIG_KEEBART_STUDIO_PERIPHERAL)
     set_property(TARGET app PROPERTY SOURCES ${sources})
   endfunction()
   cmake_language(DEFER DIRECTORY ${APPLICATION_SOURCE_DIR} CALL keebart_renderer)
+endif()
+
+if(CONFIG_KEEBART_STUDIO)
+  zephyr_compile_definitions(KEEBART_STUDIO_LOCALES=1)
+  zephyr_include_directories(${CMAKE_CURRENT_LIST_DIR})
 endif()

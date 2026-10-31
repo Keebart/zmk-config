@@ -20,12 +20,14 @@ static void wait_time(unsigned n){k_msleep(n);}
 static uint32_t usage(uint8_t code){return ks_key_usage(code);}
 static void press(uint8_t code){zmk_hid_press(usage(code));if(ks_consumer_usage(code))consumer_dirty=true;}
 static void release(uint8_t code){zmk_hid_release(usage(code));if(ks_consumer_usage(code))consumer_dirty=true;}
-static void update_mods(void){zmk_hid_masked_modifiers_set(suppressed);zmk_hid_implicit_modifiers_press((normal_weak & ~suppressed)|override_weak);}
+static uint8_t repeat_weak;
+static void update_mods(void){zmk_hid_masked_modifiers_set(suppressed);zmk_hid_implicit_modifiers_press(((normal_weak|repeat_weak) & ~suppressed)|override_weak);}
 static void send(void){update_mods();zmk_endpoints_send_report(HID_USAGE_KEY);if(consumer_dirty){consumer_dirty=false;zmk_endpoints_send_report(HID_USAGE_CONSUMER);}}
 static void weak(uint8_t mods){override_weak=mods;update_mods();}
 static void mask(uint8_t mods){suppressed=mods;update_mods();}
 static void shortcut(uint8_t m){normal_weak|=m;update_mods();}
-static const struct ks_override_io io={.mods=zmk_hid_get_explicit_mods,.press=press,.release=release,.send=send,.weak=weak,.mask=mask,.shortcut=shortcut,.clock=clock_ms,.wait=wait_time};
+extern void ks_locale_override(uint16_t,bool);
+static const struct ks_override_io io={.mods=zmk_hid_get_explicit_mods,.press=press,.release=release,.send=send,.weak=weak,.mask=mask,.shortcut=shortcut,.clock=clock_ms,.wait=wait_time,.character=ks_locale_override};
 static void init(void){if(!initialized){initialized=true;ks_override_init(ks_override_entries(),&io);}}
 static void tick(struct k_work *work);
 K_WORK_DELAYABLE_DEFINE(override_work,tick);
@@ -62,9 +64,11 @@ static uint16_t qmk_code(const struct zmk_keycode_state_changed *e){
 }
 static int key_event(const zmk_event_t *event){
     const struct zmk_keycode_state_changed *e=as_zmk_keycode_state_changed(event);
-    if(!e)return ZMK_EV_EVENT_BUBBLE;
+    if(!e || e->usage_page==0xff60)return ZMK_EV_EVENT_BUBBLE;
     k_mutex_lock(&state_mutex,K_FOREVER);init();
     uint16_t code=qmk_code(e);
+    extern void ks_repeat_note(uint16_t,uint8_t);
+    if(e->state&&code!=0xffff)ks_repeat_note(code,zmk_hid_get_explicit_mods()|e->implicit_modifiers);
     bool pass=true;
     if(!bypass && code!=0xffff){pass=ks_override_process(code,source_layer,e->state);k_work_reschedule(&override_work,K_MSEC(1));}
     if(pass){
@@ -88,3 +92,15 @@ void ks_override_report(uint16_t code,bool down){
 }
 ZMK_LISTENER(keebart_override_hid,key_event);
 ZMK_SUBSCRIPTION(keebart_override_hid,zmk_keycode_state_changed);
+
+void ks_override_locale_tap(uint8_t key,uint8_t mods){
+    zmk_hid_masked_modifiers_set(255);zmk_hid_implicit_modifiers_press(mods);
+    zmk_hid_press(HID_USAGE_KEY<<16|key);zmk_endpoints_send_report(HID_USAGE_KEY);k_msleep(5);
+    zmk_hid_release(HID_USAGE_KEY<<16|key);zmk_endpoints_send_report(HID_USAGE_KEY);
+    update_mods();zmk_endpoints_send_report(HID_USAGE_KEY);
+}
+
+uint8_t ks_locale_mods(void){return ((zmk_hid_get_explicit_mods()|normal_weak|repeat_weak)&~suppressed)|override_weak;}
+bool ks_locale_override_process(uint16_t code,uint8_t layer,bool down){init();bool pass=ks_override_process(code,layer,down);k_work_reschedule(&override_work,K_MSEC(1));return pass;}
+
+void ks_repeat_weak(uint8_t mods){repeat_weak=mods;send();}

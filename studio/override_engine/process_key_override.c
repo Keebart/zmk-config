@@ -42,6 +42,18 @@
         {}
 #endif
 
+#ifdef KEEBART_STUDIO_LOCALES
+#include "locales/locale.h"
+extern void ksl_override_release(uint16_t);
+#define KSL_REGISTERABLE(code) ((code)<SAFE_RANGE || ksl_character(code))
+#define KSL_RELEASE(code) ksl_override_release(code)
+#define KSL_PRESS(code) register_code16(code)
+#else
+#define KSL_REGISTERABLE(code) ((code)<SAFE_RANGE)
+#define KSL_RELEASE(code) unregister_code(code)
+#define KSL_PRESS(code) register_code(code)
+#endif
+
 // Helpers
 
 // Private functions implemented elsewhere in qmk/tmk
@@ -174,10 +186,14 @@ const key_override_t *clear_active_override(const bool allow_reregister) {
 
     const key_override_t *const old = active_override;
 
+#ifdef KEEBART_STUDIO_LOCALES
+    const uint16_t mod_free_replacement = clear_mods_from(active_override->replacement);
+#else
     const uint8_t mod_free_replacement = clear_mods_from(active_override->replacement);
+#endif
 
     bool unregister_replacement = mod_free_replacement != KC_NO &&   // KC_NO is never registered
-                                  mod_free_replacement < SAFE_RANGE; // Custom keycodes are never registered
+                                  KSL_REGISTERABLE(mod_free_replacement); // Custom keycodes are never registered
 
     // Try firing the custom handler
     if (active_override->custom_action != NULL) {
@@ -191,7 +207,7 @@ const key_override_t *clear_active_override(const bool allow_reregister) {
         } else {
             key_override_printf("NOT KEY 1\n");
             send_keyboard_report();
-            unregister_code(mod_free_replacement);
+            KSL_RELEASE(mod_free_replacement);
         }
     }
 
@@ -201,7 +217,7 @@ const key_override_t *clear_active_override(const bool allow_reregister) {
                                     (active_override->options & ko_option_no_reregister_trigger) == 0 && // Check if override allows
                                     active_override_trigger_is_down &&                                   // Check if trigger is even down
                                     trigger != KC_NO &&                                                  // KC_NO is never registered
-                                    trigger < SAFE_RANGE;                                                // A custom keycode should not be registered
+                                    KSL_REGISTERABLE(trigger);                                                // A custom keycode should not be registered
 
     // Optionally re-register the trigger if it is still down
     if (reregister_trigger) {
@@ -341,14 +357,14 @@ static bool try_activating_override(const uint16_t keycode, const uint8_t layer,
             if (IS_BASIC_KEYCODE(override->trigger)) {
                 del_key(override->trigger);
             } else {
-                unregister_code(override->trigger);
+                KSL_RELEASE(override->trigger);
             }
         }
 
         const uint16_t mod_free_replacement = clear_mods_from(override->replacement);
 
         bool register_replacement = mod_free_replacement != KC_NO &&   // KC_NO is never registered
-                                    mod_free_replacement < SAFE_RANGE; // Custom keycodes are never registered
+                                    KSL_REGISTERABLE(mod_free_replacement); // Custom keycodes are never registered
 
         // Try firing the custom handler
         if (override->custom_action != NULL) {
@@ -372,7 +388,7 @@ static bool try_activating_override(const uint16_t keycode, const uint8_t layer,
                     send_keyboard_report();
                     // On macOS there seems to be a race condition when it comes to the keyboard report and consumer keycodes. It seems the OS may recognize a consumer keycode before an updated keyboard report, even if the keyboard report is actually sent before the consumer key. I assume it is some sort of race condition because it happens infrequently and very irregularly. Waiting for about at least 10ms between sending the keyboard report and sending the consumer code has shown to fix this.
                     wait_ms(10);
-                    register_code(mod_free_replacement);
+                    KSL_PRESS(mod_free_replacement);
                 }
             }
         } else {

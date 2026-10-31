@@ -22,8 +22,8 @@ uint32_t ks_crc(const void *data, size_t n) {
     return ~c;
 }
 bool ks_supported(uint16_t c) {
-    return (c >= KD_BASE && c < KD_BASE + KD_COUNT) || (c >= 0x7700 && c < 0x7700 + KM_COUNT) || c <= 0x51ff || (c >= 0x5240 && c <= 0x524f) || (c >= 0x52c0 && c <= 0x52cf) ||
-           (c >= 0x52e0 && c <= 0x52ef) || (c >= 0x7c77 && c <= 0x7c78) || c == 0x7c7b ||
+    return (c>=KSL_BINDING&&c<KSL_BINDING+KSL_BINDINGS) || ksl_supported(c) || (c >= KD_BASE && c < KD_BASE + KD_COUNT) || (c >= 0x7700 && c < 0x7700 + KM_COUNT) || c <= 0x51ff || (c >= 0x5240 && c <= 0x524f) || (c >= 0x52c0 && c <= 0x52cf) ||
+           (c >= 0x52e0 && c <= 0x52ef) || (c >= 0x7c77 && c <= 0x7c7a) || c == 0x7c7b ||
            (c >= 0x7c5d && c <= 0x7c5f) || (c >= 0x7820 && c <= 0x782a) || (c >= 0x5200 && c <= 0x520f) ||
            (c >= 0x5220 && c <= 0x522f) || (c >= 0x5260 && c <= 0x526f) ||
            (c >= 0x5280 && c <= 0x528f) || (c >= 0x7c00 && c <= 0x7c01) ||
@@ -31,12 +31,13 @@ bool ks_supported(uint16_t c) {
            (c >= 0x7e20 && c <= 0x7e22);
 }
 bool ks_mapping_changed(const struct ks_config *a, const struct ks_config *b) {
-    return memcmp(a->keys, b->keys, sizeof(a->keys)) || a->default_layer != b->default_layer || memcmp(a->macros, b->macros, KM_BYTES) || memcmp(a->dances,b->dances,sizeof(a->dances)) || memcmp(a->overrides,b->overrides,sizeof(a->overrides));
+    return memcmp(a->repeats,b->repeats,sizeof(a->repeats)) || memcmp(a->locales,b->locales,KSL_BYTES) || memcmp(a->keys, b->keys, sizeof(a->keys)) || a->default_layer != b->default_layer || memcmp(a->macros, b->macros, KM_BYTES) || memcmp(a->dances,b->dances,sizeof(a->dances)) || memcmp(a->overrides,b->overrides,sizeof(a->overrides));
 }
 static void defaults(struct ks_config *c, const uint16_t *stock) {
     memset(c, 0, sizeof(*c));
-    c->version = 5;
-    memcpy(c->keys, stock, KS_KEY_COUNT * 2);
+    c->version = 8;
+    ksl_stock(c->locales);
+    for(unsigned i=0;i<KS_KEY_COUNT;i++)c->keys[i]=ksl_stock_code(stock[i]);
     for (unsigned i = KS_ENCODER_AT; i < KS_COMBO_AT; i++)
         c->keys[i] = 1;
 #if KS_ENCODERS
@@ -69,11 +70,18 @@ void ks_init(struct ks_state *s, const uint16_t *stock) {
     s->hold_since = -1;
 }
 bool ks_config_valid(const struct ks_config *c) {
-    if (c->version != 5 || c->crc != ks_crc(c, offsetof(struct ks_config, crc)) ||
+    if (c->version != 8 || !ksl_valid(c->locales) || c->crc != ks_crc(c, offsetof(struct ks_config, crc)) ||
         c->keys[KS_TERM_AT] < 1 || c->keys[KS_TERM_AT] > 1000 || c->mode > 1 || c->lighting[1] ||
         c->lighting[0] > 44 || c->lighting[5] > 30 || c->default_layer >= KS_LAYERS ||
         c->reserved[0] || c->reserved[1] || !km_valid(c->macros, KM_BYTES, KM_COUNT))
         return false;
+    unsigned bindings=c->locales[480]|(unsigned)c->locales[481]<<8;
+    for(unsigned i=0;i<bindings;i++)for(unsigned computer=0;computer<c->locales[4];computer++){
+        const uint8_t *p=c->locales+KSL_BINDING_AT+i*12+computer*2;uint16_t code=rd16(p);
+        if(!ks_supported(code))return false;
+    }
+    for(unsigned i=0;i<KS_COUNT;i++)if(c->keys[i]>=KSL_BINDING&&c->keys[i]<KSL_BINDING+KSL_BINDINGS&&c->keys[i]>=KSL_BINDING+bindings)return false;
+    for(unsigned i=0;i<KAR_COUNT;i++)if(!kar_valid(&c->repeats[i]))return false;
     for(unsigned i=0;i<KS_OVERRIDE_COUNT;i++)if(!ks_override_valid(&c->overrides[i]))return false;
     for(unsigned i=0;i<KD_COUNT;i++) {
         const struct kd_entry *e=&c->dances[i];
@@ -245,7 +253,7 @@ void ks_handle(struct ks_state *s, const uint8_t *in, size_t len, uint8_t out[32
     }
     switch (op) {
     case 15:
-        keebart_release(r,KS_MODEL_ID,1,5);
+        keebart_release(r,KS_MODEL_ID,1,8);
         memcpy(r+12,s->peer_release,12);
         break;
     case 0:
