@@ -35,10 +35,10 @@
             bindings = <&kp N2>, <&kp PIPE>;
             mods = <(MOD_LSFT|MOD_RSFT)>;
         };
-        mm_7_euro: mm_7_euro {              // tap 7 , Shift € (mac Option char)
+        mm_7_euro: mm_7_euro {              // tap 7 , Shift € (opt+shift+2)
             compatible = "zmk,behavior-mod-morph";
             #binding-cells = <0>;
-            bindings = <&kp N7>, <&comb_euro>;
+            bindings = <&kp N7>, <&kp LS(LA(N2))>;
             mods = <(MOD_LSFT|MOD_RSFT)>;
         };
         mm_8_right: mm_8_right {            // tap 8 , Shift → (literal glyph, Unicode Hex Input)
@@ -47,16 +47,16 @@
             bindings = <&kp N8>, <&uni_rarr>;
             mods = <(MOD_LSFT|MOD_RSFT)>;
         };
-        mm_9_degree: mm_9_degree {          // tap 9 , Shift ° (mac Option char)
+        mm_9_degree: mm_9_degree {          // tap 9 , Shift ° (opt+shift+8)
             compatible = "zmk,behavior-mod-morph";
             #binding-cells = <0>;
-            bindings = <&kp N9>, <&comb_degree>;
+            bindings = <&kp N9>, <&kp LS(LA(N8))>;
             mods = <(MOD_LSFT|MOD_RSFT)>;
         };
-        mm_0_plusmin: mm_0_plusmin {        // tap 0 , Shift ± (mac Option char)
+        mm_0_plusmin: mm_0_plusmin {        // tap 0 , Shift ± (opt+shift+=)
             compatible = "zmk,behavior-mod-morph";
             #binding-cells = <0>;
-            bindings = <&kp N0>, <&comb_plusmin>;
+            bindings = <&kp N0>, <&kp LS(LA(EQUAL))>;
             mods = <(MOD_LSFT|MOD_RSFT)>;
         };
         mm_colon_semi: mm_colon_semi {      // tap : , Shift ;
@@ -102,28 +102,17 @@
     };
 
     macros {
-        // All special glyphs are typed via macOS "Unicode Hex Input": hold Option,
-        // type the 4-hex-digit codepoint, release Option. REQUIRES "Unicode Hex
-        // Input" to be the ACTIVE input source (see setup notes).
-        comb_euro: comb_euro {            // € = U+20AC
-            compatible = "zmk,behavior-macro";
-            #binding-cells = <0>;
-            bindings = <&macro_press &kp LALT>, <&macro_tap &kp N2 &kp N0 &kp A &kp C>, <&macro_release &kp LALT>;
-            label = "EURO";
-        };
-        comb_degree: comb_degree {        // ° = U+00B0
-            compatible = "zmk,behavior-macro";
-            #binding-cells = <0>;
-            bindings = <&macro_press &kp LALT>, <&macro_tap &kp N0 &kp N0 &kp B &kp N0>, <&macro_release &kp LALT>;
-            label = "DEGREE";
-        };
-        comb_plusmin: comb_plusmin {      // ± = U+00B1
-            compatible = "zmk,behavior-macro";
-            #binding-cells = <0>;
-            bindings = <&macro_press &kp LALT>, <&macro_tap &kp N0 &kp N0 &kp B &kp N1>, <&macro_release &kp LALT>;
-            label = "PLUSMIN";
-        };
-        uni_rarr: uni_rarr {              // → = U+2192
+        // The ONE remaining Unicode Hex Input macro. € ° ± are now native Option
+        // chords in the standard U.S. layout (opt+shift+2 / 8 / =), sent straight
+        // from their mod-morphs, so the hex-input input source is no longer needed
+        // for them -- which keeps Option free for word navigation (opt+arrow,
+        // opt+bspc). The mod-morph masks the Shift that triggered it, so the
+        // LS() in the replacement binding is the one that reaches the host.
+        //
+        // U+2192 has no Option chord in the U.S. layout, so mm_8_right alone still
+        // requires "Unicode Hex Input" to be the ACTIVE input source: hold Option,
+        // type the 4 hex digits, release. On the U.S. layout it types nothing.
+        uni_rarr: uni_rarr {              // -> = U+2192
             compatible = "zmk,behavior-macro";
             #binding-cells = <0>;
             bindings = <&macro_press &kp LALT>, <&macro_tap &kp N2 &kp N1 &kp N9 &kp N2>, <&macro_release &kp LALT>;

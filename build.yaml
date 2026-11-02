@@ -22,18 +22,35 @@ include:
     shield: settings_reset
     snippet: studio-rpc-usb-uart
 
-  - board: corne_choc_mod_left
+  - board: corne_v1_left
     snippet: studio-rpc-usb-uart
     shield: nice_view
     cmake-args: -DCONFIG_ZMK_STUDIO=y
-  - board: corne_choc_mod_right
+  - board: corne_v1_right
     shield: nice_view
     snippet: studio-rpc-usb-uart
 
-  - board: corne_choc_mod_left
+  - board: corne_v1_left
     shield: settings_reset
     snippet: studio-rpc-usb-uart
-  - board: corne_choc_mod_right
+  - board: corne_v1_right
+    shield: settings_reset
+    snippet: studio-rpc-usb-uart
+
+  # NumNav: same hardware as corne_v1, different layers (split SYMBOL /
+  # NUMNAV instead of one combined NUM/SYM, plus bracket combos).
+  - board: corne_v2_left
+    snippet: studio-rpc-usb-uart
+    shield: nice_view
+    cmake-args: -DCONFIG_ZMK_STUDIO=y
+  - board: corne_v2_right
+    shield: nice_view
+    snippet: studio-rpc-usb-uart
+
+  - board: corne_v2_left
+    shield: settings_reset
+    snippet: studio-rpc-usb-uart
+  - board: corne_v2_right
     shield: settings_reset
     snippet: studio-rpc-usb-uart
 

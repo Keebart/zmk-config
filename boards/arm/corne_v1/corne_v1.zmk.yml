@@ -1,0 +1,17 @@
+file_format: "1"
+id: corne_v1
+name: Corne V1 BT
+type: board
+arch: arm
+features:
+  - keys
+  - underglow
+  - studio
+  - encoder
+outputs:
+  - usb
+  - ble
+url: https://keebart.com/products/corne-wireless
+siblings:
+  - corne_v1_left
+  - corne_v1_right

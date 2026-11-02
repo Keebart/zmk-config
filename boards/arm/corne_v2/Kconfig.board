@@ -1,0 +1,10 @@
+# Copyright (c) 2020 The ZMK Contributors
+# SPDX-License-Identifier: MIT
+
+config BOARD_CORNE_V2_LEFT
+	bool "Corne V2 Left"
+	depends on SOC_NRF52840_QIAA
+
+config BOARD_CORNE_V2_RIGHT
+	bool "Corne V2 Right"
+	depends on SOC_NRF52840_QIAA
