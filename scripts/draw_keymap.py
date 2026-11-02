@@ -9,8 +9,8 @@ array is key position N, which is also the Nth binding in every layer and what
 `key-positions` in a combo refers to.
 
 Usage:
-    python3 scripts/draw_keymap.py -k config/corne_choc_mod_numnav.keymap \
-                                   -j config/corne_choc_mod_numnav.json
+    python3 scripts/draw_keymap.py -k config/corne_v2.keymap \
+                                   -j config/corne_v2.json
 
 Requires nothing outside the standard library.
 """
@@ -24,8 +24,8 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
-DEFAULT_KEYMAP = os.path.join(REPO, "config", "corne_choc_mod_numnav.keymap")
-DEFAULT_LAYOUT = os.path.join(REPO, "config", "corne_choc_mod_numnav.json")
+DEFAULT_KEYMAP = os.path.join(REPO, "config", "corne_v2.keymap")
+DEFAULT_LAYOUT = os.path.join(REPO, "config", "corne_v2.json")
 
 U = 62          # px per key unit
 GAP = 3         # px shaved off each key so neighbours don't touch

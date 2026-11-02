@@ -1,7 +1,7 @@
 #include <physical_layouts.dtsi>
 
 / {
-    corne_choc_mod_position_map {
+    corne_v1_position_map {
         compatible = "zmk,physical-layout-position-map";
         complete;
 

@@ -1,6 +1,6 @@
 file_format: "1"
-id: corne_choc_mod_numnav
-name: Corne Choc Mod NumNav BT
+id: corne_v1
+name: Corne V1 BT
 type: board
 arch: arm
 features:
@@ -13,5 +13,5 @@ outputs:
   - ble
 url: https://keebart.com/products/corne-wireless
 siblings:
-  - corne_choc_mod_numnav_left
-  - corne_choc_mod_numnav_right
+  - corne_v1_left
+  - corne_v1_right

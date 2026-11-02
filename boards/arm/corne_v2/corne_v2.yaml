@@ -1,5 +1,5 @@
-identifier: corne_choc_mod_numnav
-name: Corne Choc Mod NumNav BT
+identifier: corne_v2
+name: Corne V2 BT
 type: mcu
 arch: arm
 toolchain:

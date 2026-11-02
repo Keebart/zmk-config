@@ -1,6 +1,6 @@
 file_format: "1"
-id: corne_choc_mod
-name: Corne Choc Mod BT
+id: corne_v2
+name: Corne V2 BT
 type: board
 arch: arm
 features:
@@ -13,5 +13,5 @@ outputs:
   - ble
 url: https://keebart.com/products/corne-wireless
 siblings:
-  - corne_choc_mod_left
-  - corne_choc_mod_right
+  - corne_v2_left
+  - corne_v2_right

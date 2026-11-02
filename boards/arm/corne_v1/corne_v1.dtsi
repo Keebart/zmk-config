@@ -8,7 +8,7 @@
 #include <nordic/nrf52840_qiaa.dtsi>
 #include <dt-bindings/zmk/matrix_transform.h>
 
-#include "corne_choc_mod-layouts.dtsi"
+#include "corne_v1-layouts.dtsi"
 
 &default_layout {
     transform = <&default_transform>;

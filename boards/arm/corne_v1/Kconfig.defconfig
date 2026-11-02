@@ -1,7 +1,7 @@
 # Copyright (c) 2020 The ZMK Contributors
 # SPDX-License-Identifier: MIT
 
-if BOARD_CORNE_CHOC_MOD_RIGHT
+if BOARD_CORNE_V1_RIGHT
 
 config ZMK_KEYBOARD_NAME
 	default "Corne Choc Mod"
@@ -9,12 +9,12 @@ config ZMK_KEYBOARD_NAME
 config ZMK_SPLIT_ROLE_CENTRAL
     default y
 
-endif # BOARD_CORNE_CHOC_MOD_RIGHT
+endif # BOARD_CORNE_V1_RIGHT
 
-if BOARD_CORNE_CHOC_MOD_LEFT || BOARD_CORNE_CHOC_MOD_RIGHT
+if BOARD_CORNE_V1_LEFT || BOARD_CORNE_V1_RIGHT
 
 config BOARD
-    default "corne_choc_mod"
+    default "corne_v1"
 
 config ZMK_SPLIT
     default y
@@ -38,4 +38,4 @@ config I2C
 config ZMK_MAX17048
     default y
 
-endif # BOARD_CORNE_CHOC_MOD_LEFT || BOARD_CORNE_CHOC_MOD_RIGHT
+endif # BOARD_CORNE_V1_LEFT || BOARD_CORNE_V1_RIGHT

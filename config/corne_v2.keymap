@@ -6,7 +6,7 @@
  * NumNav layout -- transcribed from
  *   kb-corne/layouts/keyboard-layout_2h_mod_v04_numnav.json
  *
- * The difference from corne_choc_mod: that keymap has one combined NUM/SYM
+ * The difference from corne_v1: that keymap has one combined NUM/SYM
  * layer plus an FN layer. Here the two are split by purpose --
  *
  *   layer 1  SYMBOL   punctuation and special glyphs, no digits
@@ -16,7 +16,7 @@
  * to NUMNAV's IJKL cluster, and `,` `.` `?` `/` get their own keys instead of
  * sharing one mod-morph. Both layer keys now sit on the right thumb.
  *
- * corne_choc_mod's extras are NOT carried over -- Shift->[ ] on < and >, the
+ * corne_v1's extras are NOT carried over -- Shift->[ ] on < and >, the
  * S+D underscore combo and Globe doubling as a layer key are all gone. The one
  * kept on purpose is mm_esc_grave (Cmd+Esc -> Cmd+`), which is a mac window
  * shortcut rather than a layout choice.
@@ -204,7 +204,7 @@
             bindings = <&kp LS(LA(EQUAL))>;
         };  // T+G -> ±
 
-        // corne_choc_mod's combo_under (S+D -> _) and combo_bt0/1/2/clr are not
+        // corne_v1's combo_under (S+D -> _) and combo_bt0/1/2/clr are not
         // carried over: "_" has its own key on SYMBOL, and bluetooth has its own
         // layer now rather than keys borrowed from NUMNAV.
     };
@@ -259,7 +259,7 @@
         // → (pos 7) is the exception: no Option chord exists, so it stays on the
         // uni_rarr hex macro and only works while "Unicode Hex Input" is active.
         //
-        // `<` and `>` are plain &kp here -- corne_choc_mod's Shift->[ ] morphs are
+        // `<` and `>` are plain &kp here -- corne_v1's Shift->[ ] morphs are
         // not carried over (see the file header), so the bracket combos have no
         // single-key fallback on this layout.
 
