@@ -1,0 +1,20 @@
+/*
+ * Copyright (c) 2020 The ZMK Contributors
+ *
+ * SPDX-License-Identifier: MIT
+ *
+ * corne_v3 is a KEYMAP variant of corne_v1 -- identical hardware, different
+ * layers. The hardware description is therefore INCLUDED from the original board
+ * rather than copied: pin maps, the RGB strip, the fuel gauge, the encoders and
+ * the matrix transform all stay defined in exactly one place. Only the board
+ * identity differs, which is what gives ZMK a separate <board>.keymap to load.
+ *
+ * If the hardware ever changes, change it in corne_v1/ and this follows.
+ */
+
+#include "../corne_v1/corne_v1_left.dts"
+
+/ {
+    model = "corne_v3_left";
+    compatible = "corne_v3_left";
+};

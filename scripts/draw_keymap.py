@@ -24,8 +24,8 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
-DEFAULT_KEYMAP = os.path.join(REPO, "config", "corne_v2.keymap")
-DEFAULT_LAYOUT = os.path.join(REPO, "config", "corne_v2.json")
+DEFAULT_KEYMAP = os.path.join(REPO, "config", "corne_v3.keymap")
+DEFAULT_LAYOUT = os.path.join(REPO, "config", "corne_v3.json")
 
 U = 62          # px per key unit
 GAP = 3         # px shaved off each key so neighbours don't touch
