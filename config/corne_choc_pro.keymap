@@ -16,6 +16,14 @@
 };
 
 / {
+    conditional_layers {
+        compatible = "zmk,conditional-layers";
+        tri_layer {
+            if-layers = <1 2>;
+            then-layer = <3>;
+        };
+    };
+
     keymap {
         compatible = "zmk,keymap";
 
@@ -65,13 +73,20 @@
             >;
         };
 
-        extra_layer_1 {
-            display-name = "EXTRA 1";
+        function_layer {
+            display-name = "FUNCTION";
+            // Hold LOWER + RAISE together (tri-layer, see conditional_layers below).
+            // F1-F10 sit on the same keys as 1-0 on the NUMBER layer; F11/F12 on BSPC / ' positions.
+            // -----------------------------------------------------------------------------------------
+            // |      |  F1 |  F2 |  F3 |  F4 |  F5 |       |       |  F6 |  F7 |  F8 |  F9 | F10 | F11  |
+            // |      |     |     |     |     |     |       |       |     |     |     |     |     | F12  |
+            // |      |     |     |     |     |     |               |     |     |     |     |     |      |
+            //                    |     |     |     |               |     |     |     |
             bindings = <
-                &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans
-                &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans
-                &trans &trans &trans &trans &trans &trans               &trans &trans &trans &trans &trans &trans
-                                     &trans &trans &trans               &trans &trans &trans       
+                &trans &kp F1 &kp F2 &kp F3 &kp F4 &kp F5 &trans &trans &kp F6 &kp F7 &kp F8 &kp F9 &kp F10 &kp F11
+                &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans  &kp F12
+                &trans &trans &trans &trans &trans &trans               &trans &trans &trans &trans &trans  &trans
+                                     &trans &trans &trans               &trans &trans &trans
             >;
         };
 
