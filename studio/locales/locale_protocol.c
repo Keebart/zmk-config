@@ -26,7 +26,10 @@ uint8_t ksl_handle(struct ksl_transaction *s,const uint8_t p[25],uint8_t out[25]
     }
     if(p[0]!=3)return KSL_INVALID;
     unsigned end=KSL_BINDING_AT+rd16(s->staged+480)*12U;if(end>KSL_LAYER_RULE_AT)return KSL_INVALID;
-    for(unsigned i=0;i<KSL_BYTES;i++)if((i<end||i>=KSL_LAYER_RULE_AT)&&!(s->seen[i/8]&(1U<<(i%8))))return KSL_INVALID;
+    if(s->staged[6]>KSL_ACTIONS||s->staged[482]>1||s->staged[483]>32||s->staged[7]>7)return KSL_INVALID;
+    unsigned tail=KSL_LAYER_RULE_AT-(s->staged[482]?s->staged[6]*4:0)-s->staged[483]*6-((s->staged[7]&2)?16:0)-((s->staged[7]&4)?2:0);
+    if(end>tail)return KSL_INVALID;
+    for(unsigned i=0;i<KSL_BYTES;i++)if((i<end||i>=tail)&&!(s->seen[i/8]&(1U<<(i%8))))return KSL_INVALID;
     if(!ksl_valid(s->staged)||ksl_crc(s->staged,KSL_CRC_AT)!=s->crc)return KSL_INVALID;
     s->staging=false;s->pending=true;return KSL_PENDING;
 }

@@ -37,3 +37,10 @@ unsigned ksl_bluetooth(const uint8_t *,unsigned,unsigned);
 uint16_t ksl_compound(const uint8_t *,uint16_t,unsigned);
 
 unsigned ksl_os_computer(const uint8_t *,unsigned);
+
+bool ksl_rgb(const uint8_t *,uint16_t,uint16_t[3]);
+
+bool ksl_chordal_exempt(const uint8_t *,unsigned);
+
+unsigned ksl_lighting_idle_seconds(const uint8_t *);
+bool ksl_lighting_awake(const uint8_t *,uint32_t,bool);

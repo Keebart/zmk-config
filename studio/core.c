@@ -24,7 +24,7 @@ uint32_t ks_crc(const void *data, size_t n) {
 bool ks_supported(uint16_t c) {
     return (c>=KSL_BINDING&&c<KSL_BINDING+KSL_BINDINGS) || ksl_supported(c) || (c >= KD_BASE && c < KD_BASE + KD_COUNT) || (c >= 0x7700 && c < 0x7700 + KM_COUNT) || c <= 0x51ff || (c >= 0x5240 && c <= 0x524f) || (c >= 0x52c0 && c <= 0x52cf) ||
            (c >= 0x52e0 && c <= 0x52ef) || (c >= 0x7c77 && c <= 0x7c7a) || c == 0x7c7b ||
-           (c >= 0x7c5d && c <= 0x7c5f) || (c >= 0x7820 && c <= 0x782a) || (c >= 0x5200 && c <= 0x520f) ||
+           (c >= 0x7c5d && c <= 0x7c5f) || (c >= 0x7f40 && c <= 0x7f5f) || (c >= 0x7840 && c <= 0x7841) || (c >= 0x7820 && c <= 0x782a) || (c >= 0x5200 && c <= 0x520f) ||
            (c >= 0x5220 && c <= 0x522f) || (c >= 0x5260 && c <= 0x526f) ||
            (c >= 0x5280 && c <= 0x528f) || (c >= 0x7c00 && c <= 0x7c01) ||
            (c >= 0x7e00 && c <= 0x7e04) || (c >= 0x7e10 && c <= 0x7e13) ||

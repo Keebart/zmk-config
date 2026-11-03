@@ -19,8 +19,8 @@ static bool utf8(const uint8_t *p,size_t n){
 }
 bool ksl_supported(uint16_t code){return ksl_character(code)||(code>=KSL_SELECT&&code<=KSL_PREVIOUS)||(code>=KSL_COMPOUND&&code<KSL_COMPOUND+KSL_ACTIONS);}
 bool ksl_compound_key(uint16_t c){
-    return ksl_character(c)||c<=0x1fff||(c>=0x5000&&c<=0x52ff)||(c>=0x7700&&c<=0x770f)||
-        (c>=0x7800&&c<=0x784c)||(c>=0x7c00&&c<=0x7c01)||(c>=0x7c5d&&c<=0x7c5f)||
+    return ksl_character(c)||c<=0x1fff||(c>=0x5000&&c<=0x52ff)||(c>=0x7700&&c<=0x771f)||
+        (c>=0x7f40&&c<=0x7f5f)||(c>=0x7800&&c<=0x784c)||(c>=0x7c00&&c<=0x7c01)||(c>=0x7c5d&&c<=0x7c5f)||
         c==0x7c73||(c>=0x7c77&&c<=0x7c7a)||c==0x7c7b||(c>=KSL_SELECT&&c<=KSL_PREVIOUS)||
         (c>=0x7e00&&c<=0x7e04)||(c>=0x7e10&&c<=0x7e13)||(c>=0x7e20&&c<=0x7e22);
 }
@@ -37,7 +37,7 @@ uint16_t ksl_stock_code(uint16_t code){
     return code;
 }
 static bool common_valid(const uint8_t *p){
-    if(p[4]>KSL_COMPUTERS||p[6]>KSL_ACTIONS||p[7]>1)return false;
+    if(p[4]>KSL_COMPUTERS||p[6]>KSL_ACTIONS||p[7]>7)return false;
     if((p[4]&&p[5]>=p[4])||(!p[4]&&(p[5]||p[6])))return false;
     unsigned slots=0;
     for(unsigned i=0;i<KSL_COMPUTERS;i++){
@@ -56,7 +56,7 @@ bool ksl_legacy_valid(const uint8_t *p){return !memcmp(p,"KSL1",4)&&rd32(p+508)=
 bool ksl_valid(const uint8_t *p){
     if(memcmp(p,"KSL2",4)||rd32(p+KSL_CRC_AT)!=ksl_crc(p,KSL_CRC_AT)||!common_valid(p))return false;
     unsigned count=rd16(p+480);
-    if(count>KSL_BINDINGS||(!p[4]&&count)||p[482]>1||p[483])return false;
+    if(count>KSL_BINDINGS||(!p[4]&&count)||p[482]>1||p[483]>32)return false;
     for(unsigned i=0;i<count;i++)for(unsigned computer=0;computer<KSL_COMPUTERS;computer++){
         uint16_t code=rd16(p+KSL_BINDING_AT+i*12+computer*2);
         if(computer>=p[4]){if(code)return false;continue;}
@@ -64,13 +64,17 @@ bool ksl_valid(const uint8_t *p){
         if(code>=KSL_SELECT&&code<KSL_NEXT&&code>=KSL_SELECT+p[4])return false;
     }
     unsigned timing=p[482]?p[6]*4:0;
-    if(KSL_BINDING_AT+count*12+timing>KSL_LAYER_RULE_AT)return false;
-    if(!zero(p+KSL_BINDING_AT+count*12,KSL_LAYER_RULE_AT-KSL_BINDING_AT-count*12-timing))return false;
+    unsigned colors=p[483]*6,exempt=(p[7]&2)?16:0,sleep=(p[7]&4)?2:0;
+    if(KSL_BINDING_AT+count*12+timing+colors+exempt+sleep>KSL_LAYER_RULE_AT)return false;
+    if(!zero(p+KSL_BINDING_AT+count*12,KSL_LAYER_RULE_AT-KSL_BINDING_AT-count*12-timing-colors-exempt-sleep))return false;
+    if(sleep){unsigned seconds=ksl_lighting_idle_seconds(p);if(!seconds||seconds>3600)return false;}
+    if(exempt&&zero(p+KSL_LAYER_RULE_AT-timing-colors-exempt,exempt))return false;
     if(timing){
         bool any=false;
         for(unsigned i=KSL_LAYER_RULE_AT-timing;i<KSL_LAYER_RULE_AT;i+=2){unsigned term=rd16(p+i);if(term>1000)return false;any|=term!=0;}
         if(!any)return false;
     }else if(p[482])return false;
+    for(unsigned i=KSL_LAYER_RULE_AT-timing-colors;i<KSL_LAYER_RULE_AT-timing;i+=6)if(rd16(p+i)>360||rd16(p+i+2)>100||rd16(p+i+4)>100)return false;
     uint16_t all_inputs=0,all_targets=0;bool ended=false;
     for(unsigned i=0;i<KSL_LAYER_RULES;i++){
         const uint8_t *rule=p+KSL_LAYER_RULE_AT+i*4;unsigned mask=rd16(rule),target=rule[2];
@@ -127,11 +131,34 @@ uint16_t ksl_compound(const uint8_t *p,uint16_t code,unsigned field){
 }
 
 unsigned ksl_os_computer(const uint8_t *p,unsigned os){
-    if(!os||os>3||p[7])return 255;
+    if(!os||os>3||(p[7]&1))return 255;
     unsigned found=255;
     for(unsigned i=0;i<p[4];i++){
         unsigned layout=rd16(p+8+i*36);
         if(layout<KSL_LAYOUT_COUNT&&ksl_layout_os[layout]==os){if(found!=255)return 255;found=i;}
     }
     return found;
+}
+
+bool ksl_rgb(const uint8_t *p,uint16_t code,uint16_t out[3]){
+ if(code<0x7f40||code>=0x7f40+p[483])return false;
+ unsigned at=KSL_LAYER_RULE_AT-(p[482]?p[6]*4:0)-p[483]*6+(code-0x7f40)*6;
+ for(unsigned i=0;i<3;i++)out[i]=rd16(p+at+i*2);
+ return true;
+}
+
+bool ksl_chordal_exempt(const uint8_t *p,unsigned pos){
+ if(!(p[7]&2)||pos>=128)return false;
+ unsigned at=KSL_LAYER_RULE_AT-(p[482]?p[6]*4:0)-p[483]*6-16;
+ return (p[at+pos/8]&(1u<<(pos%8)))!=0;
+}
+
+unsigned ksl_lighting_idle_seconds(const uint8_t *p){
+ if(!(p[7]&4))return 0;
+ unsigned at=KSL_LAYER_RULE_AT-(p[482]?p[6]*4:0)-p[483]*6-((p[7]&2)?16:0)-2;
+ return rd16(p+at);
+}
+bool ksl_lighting_awake(const uint8_t *p,uint32_t elapsed,bool default_awake){
+ unsigned seconds=ksl_lighting_idle_seconds(p);
+ return seconds?elapsed<(uint32_t)seconds*1000:default_awake;
 }

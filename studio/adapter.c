@@ -55,6 +55,7 @@ K_MSGQ_DEFINE(encoder_taps, sizeof(struct encoder_tap), 64, 4);
 #endif
 static unsigned pending_encoder_taps;
 static bool lighting_enabled = true;
+static uint32_t lighting_activity;
 static int execute(uint16_t, struct zmk_behavior_binding_event, bool);
 static struct km_vm macro_vm;
 static void macro_emit(void *, uint16_t, bool);
@@ -96,6 +97,7 @@ static int settings_read(const char *name, size_t len, settings_read_cb read, vo
 static void locale_load(void);
 static void locale_endpoint(void);
 static void locale_cancel(void);
+static void pointer_cancel(void);
 static void locale_schedule(void);
 static int keebart_settings_commit(void) {
     ks_store_load(&storage, &state);
@@ -111,6 +113,7 @@ static int observe(const zmk_event_t *event) {
     const struct zmk_position_state_changed *pos = as_zmk_position_state_changed(event);
     k_mutex_lock(&state_mutex, K_FOREVER);
     if (pos) {
+        lighting_activity = k_uptime_get_32();
         ks_position(&state, pos->position, pos->state, pos->timestamp);
         locale_schedule();
         if (pos->state)
@@ -118,6 +121,7 @@ static int observe(const zmk_event_t *event) {
 
 #if KS_ENCODERS
     } else if (as_zmk_sensor_event(event)) {
+        lighting_activity = k_uptime_get_32();
         const struct zmk_sensor_event *e = as_zmk_sensor_event(event);
         if (e->sensor_index < KS_ENCODERS && e->channel_data_size == 1) {
             const struct zmk_sensor_config *cfg = zmk_sensors_get_config_at_index(e->sensor_index);
@@ -134,12 +138,12 @@ static int observe(const zmk_event_t *event) {
         host_locks = as_zmk_hid_indicators_changed(event)->indicators;
     } else if (as_zmk_endpoint_changed(event) || as_zmk_ble_active_profile_changed(event) || (as_zmk_activity_state_changed(event) && as_zmk_activity_state_changed(event)->state == ZMK_ACTIVITY_SLEEP)) {
         locale_endpoint();
-        ks_override_lifecycle_cancel();
+        ks_override_lifecycle_cancel();pointer_cancel();
         kd_cancel(&dances,dance_emit,NULL);
         km_cancel(&macro_vm, macro_emit, NULL);
     } else if (as_zmk_usb_conn_state_changed(event)) {
         locale_endpoint();
-        ks_override_lifecycle_cancel();
+        ks_override_lifecycle_cancel();pointer_cancel();
         kd_cancel(&dances,dance_emit,NULL);
         km_cancel(&macro_vm, macro_emit, NULL);
         ks_lock(&state);
@@ -218,6 +222,8 @@ static struct zmk_behavior_binding translate(uint16_t c) {
     }
     return b;
 }
+#include "locales/rgb_action.h"
+#include "pointer_port.inc"
 #include "locale_port.inc"
 #include "repeat_port.inc"
 static int invoke(struct zmk_behavior_binding *binding, struct zmk_behavior_binding_event event,
@@ -499,12 +505,25 @@ static int execute(uint16_t c, struct zmk_behavior_binding_event e, bool down) {
         return ks_lighting_action(action, (c & 1) ? step : -step);
     }
     if(c>=0x7c5d && c<=0x7c5f){ks_override_report(c,down);return 0;}
+    if(c>=0x7f40&&c<=0x7f5f){
+        uint16_t color[3];if(!down||state.staging||!ksl_rgb(state.active.locales,c,color))return 0;
+        uint8_t rgb[3];ksl_rgb_color(color,rgb);
+        for(unsigned i=0;i<KS_KEY_COUNT*3;i+=3)memcpy(state.active.palette+i,rgb,3);
+        state.active.mode=1;state.active.lighting[3]=color[0]*255/360;state.active.lighting[4]=color[1]*255/100;state.active.lighting[5]=color[2]*30/100;
+        lighting_enabled=true;state.active.generation++;state.active.crc=ks_crc(&state.active,offsetof(struct ks_config,crc));
+        k_work_reschedule(&lighting_save_work,K_MSEC(1000));return 0;
+    }
+    if(pointer_key(c,down))return 0;
+    if(c==0x7840||c==0x7841)return down?ks_lighting_action(1,c==0x7840):0;
     struct zmk_behavior_binding b = translate(c);
     return zmk_behavior_invoke_binding(&b, e, down);
 }
 bool ks_frame(uint8_t out[KS_KEYS][3]) {
     k_mutex_lock(&state_mutex, K_FOREVER);
-    bool awake = lighting_enabled && zmk_activity_get_state() == ZMK_ACTIVITY_ACTIVE;
+    enum zmk_activity_state activity = zmk_activity_get_state();
+    bool awake = lighting_enabled && activity != ZMK_ACTIVITY_SLEEP &&
+        ksl_lighting_awake(state.active.locales, k_uptime_get_32() - lighting_activity,
+                           activity == ZMK_ACTIVITY_ACTIVE);
     ks_render(&renderer, &state.active, zmk_keymap_highest_layer_active(), host_locks, awake,
               k_uptime_get(), out);
     bool streaming = awake && state.active.lighting[5] != 0;
@@ -558,7 +577,7 @@ static void run(void *a, void *b, void *c) {
             output[5] = 5;
         } else {
             if (input[3]==15) ks_peer_release(state.peer_release);
-            if(input[3]==10 || (input[3]==8 && ks_mapping_changed(&state.active,&state.staged)))ks_override_lifecycle_cancel();
+            if(input[3]==10 || (input[3]==8 && ks_mapping_changed(&state.active,&state.staged))){ks_override_lifecycle_cancel();pointer_cancel();}
             if(input[3]==17)locale_request(input,output);
             else if(input[3]==16)ksn_handle(input,output,!state.unlocking && !state.staging);
             else ks_handle(&state, input, sizeof(input), output, k_uptime_get(), persist, ks_stock);

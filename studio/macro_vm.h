@@ -3,7 +3,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #define KM_BYTES 4096
-#define KM_COUNT 16
+#define KM_COUNT 32
 #define KM_HELD 16
 struct km_vm {
     const uint8_t *bytes;

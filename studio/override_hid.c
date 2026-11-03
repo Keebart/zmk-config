@@ -67,6 +67,8 @@ static int key_event(const zmk_event_t *event){
     if(!e || e->usage_page==0xff60)return ZMK_EV_EVENT_BUBBLE;
     k_mutex_lock(&state_mutex,K_FOREVER);init();
     uint16_t code=qmk_code(e);
+    extern bool ks_pointer_report(uint16_t,bool);
+    if(e->usage_page==HID_USAGE_KEY && ks_pointer_report(code,e->state)){k_mutex_unlock(&state_mutex);return ZMK_EV_EVENT_BUBBLE;}
     extern void ks_repeat_note(uint16_t,uint8_t);
     if(e->state&&code!=0xffff)ks_repeat_note(code,zmk_hid_get_explicit_mods()|e->implicit_modifiers);
     bool pass=true;

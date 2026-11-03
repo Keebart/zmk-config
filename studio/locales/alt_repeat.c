@@ -8,7 +8,7 @@ static uint16_t normalize(uint16_t code,uint8_t *mods){
 }
 bool kar_allowed(uint16_t c){
     unsigned key=c&255;
-    return c<=1||ksl_character(c)||(c>=0x7700&&c<0x7710)||
+    return c<=1||ksl_character(c)||(c>=0x7700&&c<0x7720)||
         (c<0x5000&&((key>=4&&key<=0xa4)||(key>=0xa8&&key<=0xdf)));
 }
 bool kar_valid(const struct kar_rule *e){return !(e->options&~15U)&&kar_allowed(e->keycode)&&kar_allowed(e->alt_keycode);}

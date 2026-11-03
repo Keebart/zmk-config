@@ -152,6 +152,8 @@ static bool event(struct ksl_runtime *r,const uint8_t *p,unsigned pos,uint16_t c
 static void remove_deferred(struct ksl_runtime *r,unsigned at){
     r->deferred_count--;memmove(r->deferred+at,r->deferred+at+1,(r->deferred_count-at)*sizeof(*r->deferred));
 }
+static bool modifier_hold(uint16_t code){return (code>=0xe0&&code<=0xe7)||(code>=0x100&&code<=0x1f00&&!(code&255));}
+static bool mod_tap(const uint8_t *p,uint16_t code){return code>=KSL_COMPOUND&&code<KSL_COMPOUND+p[6]&&modifier_hold(ksl_compound(p,code,1));}
 static void drain(struct ksl_runtime *r,const uint8_t *p,int64_t now,uint8_t mods,bool caps,const struct ksl_io *io){
     if(r->draining)return;
     r->draining=true;
@@ -167,15 +169,26 @@ static void drain(struct ksl_runtime *r,const uint8_t *p,int64_t now,uint8_t mod
                 }
                 if(e.down&&e.position!=h->position){
                     h->interrupted=true;
-                    unsigned first=io->hand?io->hand(io->context,h->position):0;
-                    unsigned second=io->hand?io->hand(io->context,e.position):0;
-                    if((h->flags&KSL_CHORDAL)&&first&&first==second){tap_start(r,h,p,e.time,mods,caps,io);decided=true;break;}
+                    unsigned first=io->hand&&!ksl_chordal_exempt(p,h->position)?io->hand(io->context,h->position):0;
+                    unsigned second=io->hand&&!ksl_chordal_exempt(p,e.position)?io->hand(io->context,e.position):0;
+                    if((h->flags&KSL_CHORDAL)&&first&&first==second){
+                        // Keep a stack of home-row modifiers undecided until a
+                        // real trigger or release distinguishes a chord from a roll.
+                        if(!e.tap&&modifier_hold(h->hold)&&mod_tap(p,e.code))continue;
+                        tap_start(r,h,p,e.time,mods,caps,io);decided=true;break;
+                    }
                     if(!(h->flags&(KSL_PERMISSIVE|KSL_TAP_PREFERRED))){hold_start(r,h,p,e.time,mods,caps,io);decided=true;break;}
                 }
                 if(!e.down&&(h->flags&KSL_PERMISSIVE)){
                     bool nested=false;
                     for(unsigned j=0;j<i;j++)if(r->deferred[j].position==e.position)nested=r->deferred[j].down;
-                    if(nested){hold_start(r,h,p,e.time,mods,caps,io);decided=true;break;}
+                    if(nested){
+                        unsigned first=io->hand&&!ksl_chordal_exempt(p,h->position)?io->hand(io->context,h->position):0;
+                        unsigned second=io->hand&&!ksl_chordal_exempt(p,e.position)?io->hand(io->context,e.position):0;
+                        if((h->flags&KSL_CHORDAL)&&first&&first==second)tap_start(r,h,p,e.time,mods,caps,io);
+                        else hold_start(r,h,p,e.time,mods,caps,io);
+                        decided=true;break;
+                    }
                 }
             }
             if(!decided&&now>=h->due){hold_start(r,h,p,h->due,mods,caps,io);decided=true;}

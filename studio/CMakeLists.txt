@@ -1,4 +1,5 @@
 if(CONFIG_KEEBART_STUDIO)
+  target_sources(app PRIVATE ${CMAKE_CURRENT_LIST_DIR}/pointer/pointer.c)
   target_sources(app PRIVATE ${CMAKE_CURRENT_LIST_DIR}/locales/alt_repeat.c ${CMAKE_CURRENT_LIST_DIR}/locales/locale.c ${CMAKE_CURRENT_LIST_DIR}/locales/locale_runtime.c)
   target_sources(app PRIVATE ${CMAKE_CURRENT_LIST_DIR}/settings_guard.c ${CMAKE_CURRENT_LIST_DIR}/device_name.c ${CMAKE_CURRENT_LIST_DIR}/device_name_port.c)
   zephyr_ld_options(-Wl,--wrap=zmk_behavior_invoke_binding -Wl,--wrap=settings_load -Wl,--wrap=settings_load_subtree
