@@ -1,0 +1,13 @@
+#pragma once
+#include <stdint.h>
+#include "modifiers.h"
+uint8_t get_mods(void);
+void clear_mods(void);
+void add_mods(uint8_t);
+void del_mods(uint8_t);
+uint8_t get_weak_mods(void);
+void clear_weak_mods(void);
+void add_weak_mods(uint8_t);
+void del_weak_mods(uint8_t);
+void unregister_weak_mods(uint8_t);
+void send_keyboard_report(void);

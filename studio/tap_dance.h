@@ -5,6 +5,8 @@
 #define KD_COUNT 32
 #define KD_ACTIVE 128
 #define KD_BASE 0x5700
+#define KD_GUARD 0x8000
+#define KD_TERM_MASK 0x03ff
 struct kd_entry { uint16_t tap, hold, twice, tap_hold, term; };
 enum kd_action { KD_DOWN, KD_UP, KD_TAP };
 typedef void (*kd_emit)(void *, unsigned, uint16_t, enum kd_action);

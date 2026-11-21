@@ -38,7 +38,11 @@
 #define pgm_read_word(address_short) *((uint16_t*)(address_short))
 
 uint16_t combo_count(void) {
+#ifdef KEEBART_STUDIO_LOCALES
+    return 64;
+#else
     return VIAL_COMBO_ENTRIES;
+#endif
 }
 
 extern combo_t key_combos[];

@@ -53,3 +53,10 @@ BUILD_ASSERT(DT_SAME_NODE(DT_CHOSEN(zephyr_code_partition), DT_NODELABEL(code_pa
 BUILD_ASSERT(DT_SAME_NODE(DT_CHOSEN(zephyr_settings_partition), DT_NODELABEL(storage_partition)),
              "The settings backend must use the guarded storage partition");
 #endif
+#if !defined(CONFIG_SOC_FLASH_NRF_RADIO_SYNC_TICKER) || !defined(CONFIG_SOC_FLASH_NRF_PARTIAL_ERASE)
+#error "Keep radio-synchronized partial flash erase enabled"
+#endif
+#if defined(CONFIG_BT_CTLR_ASSERT_OVERHEAD_START)
+#error "Disable controller assert overhead start to preserve radio timing"
+#endif
+BUILD_ASSERT(CONFIG_SOC_FLASH_NRF_PARTIAL_ERASE_MS == 2, "Keep partial flash erase window bounded to 2 ms");

@@ -1,0 +1,12 @@
+#pragma once
+#define MOD_BIT(c) ((uint8_t)(1U<<((c)&7)))
+#define MOD_LSFT 0x02
+#define MOD_RSFT 0x20
+#define MOD_RALT 0x40
+#define MOD_MASK_SHIFT (MOD_LSFT|MOD_RSFT)
+#define MOD_MASK_CTRL 0x11
+#define MOD_MASK_ALT 0x44
+#define MOD_MASK_GUI 0x88
+#define MOD_MASK_CAG (MOD_MASK_CTRL|MOD_MASK_ALT|MOD_MASK_GUI)
+#define MOD_MASK_CSAG (MOD_MASK_CTRL|MOD_MASK_SHIFT|MOD_MASK_ALT|MOD_MASK_GUI)
+#define IS_MODIFIER_KEYCODE(c) ((c)>=0xe0&&(c)<=0xe7)

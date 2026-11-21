@@ -25,6 +25,9 @@ struct status_state {
     bool active_profile_bonded;
     uint8_t layer_index;
     const char *layer_label;
+#if IS_ENABLED(CONFIG_KEEBART_STUDIO)
+    char last_key[192];
+#endif
     uint8_t wpm[10];
 #else
     bool connected;

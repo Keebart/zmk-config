@@ -1,3 +1,6 @@
+#ifdef KEEBART_STUDIO_PHYSICAL
+#include "physical/physical.h"
+#endif
 #include "lighting_defaults.h"
 #include "macro_restore.h"
 #include "release.h"
@@ -22,6 +25,7 @@ uint32_t ks_crc(const void *data, size_t n) {
     return ~c;
 }
 bool ks_supported(uint16_t c) {
+    if(kse_code(c) || c == 0x7c03) return true; // kse_code(c) || shared Studio actions
     return (c>=KSL_BINDING&&c<KSL_BINDING+KSL_BINDINGS) || ksl_supported(c) || (c >= KD_BASE && c < KD_BASE + KD_COUNT) || (c >= 0x7700 && c < 0x7700 + KM_COUNT) || c <= 0x51ff || (c >= 0x5240 && c <= 0x524f) || (c >= 0x52c0 && c <= 0x52cf) ||
            (c >= 0x52e0 && c <= 0x52ef) || (c >= 0x7c77 && c <= 0x7c7a) || c == 0x7c7b ||
            (c >= 0x7c5d && c <= 0x7c5f) || (c >= 0x7f40 && c <= 0x7f5f) || (c >= 0x7840 && c <= 0x7841) || (c >= 0x7820 && c <= 0x782a) || (c >= 0x5200 && c <= 0x520f) ||
@@ -36,8 +40,13 @@ bool ks_mapping_changed(const struct ks_config *a, const struct ks_config *b) {
 static void defaults(struct ks_config *c, const uint16_t *stock) {
     memset(c, 0, sizeof(*c));
     c->version = 8;
+#ifdef KEEBART_STUDIO_PHYSICAL
+    if (!ksh_compact_locale(KS_MODEL_ID, ksh_flags(), c->locales)) ksl_stock(c->locales);
+    for(unsigned i=0;i<KS_KEY_COUNT;i++)c->keys[i]=ksl_stock_code(ksh_compact_position(KS_MODEL_ID, ksh_flags(), i, stock[i]));
+#else
     ksl_stock(c->locales);
     for(unsigned i=0;i<KS_KEY_COUNT;i++)c->keys[i]=ksl_stock_code(stock[i]);
+#endif
     for (unsigned i = KS_ENCODER_AT; i < KS_COMBO_AT; i++)
         c->keys[i] = 1;
 #if KS_ENCODERS
@@ -69,15 +78,19 @@ void ks_init(struct ks_state *s, const uint16_t *stock) {
     defaults(&s->active, stock);
     s->hold_since = -1;
 }
+static void combo_entry(const struct ks_config *c,unsigned index,uint16_t out[5]) {
+    if(index<KS_COMBOS)memcpy(out,c->keys+KS_COMBO_AT+index*5,10);
+    else ksl_extra_combo(c->locales,index-KS_COMBOS,out);
+}
 bool ks_config_valid(const struct ks_config *c) {
     if (c->version != 8 || !ksl_valid(c->locales) || c->crc != ks_crc(c, offsetof(struct ks_config, crc)) ||
         c->keys[KS_TERM_AT] < 1 || c->keys[KS_TERM_AT] > 1000 || c->mode > 1 || c->lighting[1] ||
         c->lighting[0] > 44 || c->lighting[5] > 30 || c->default_layer >= KS_LAYERS ||
-        c->reserved[0] || c->reserved[1] || !km_valid(c->macros, KM_BYTES, KM_COUNT))
+        !km_valid(c->macros, KM_BYTES, KM_COUNT))
         return false;
     unsigned bindings=c->locales[480]|(unsigned)c->locales[481]<<8;
     for(unsigned i=0;i<bindings;i++)for(unsigned computer=0;computer<c->locales[4];computer++){
-        const uint8_t *p=c->locales+KSL_BINDING_AT+i*12+computer*2;uint16_t code=rd16(p);
+        const uint8_t *p=c->locales+ksl_binding_at(c->locales)+i*ksl_binding_stride(c->locales)+computer*2;uint16_t code=rd16(p);
         if(!ks_supported(code))return false;
     }
     for(unsigned i=0;i<KS_COUNT;i++)if(c->keys[i]>=KSL_BINDING&&c->keys[i]<KSL_BINDING+KSL_BINDINGS&&c->keys[i]>=KSL_BINDING+bindings)return false;
@@ -86,8 +99,9 @@ bool ks_config_valid(const struct ks_config *c) {
     for(unsigned i=0;i<KD_COUNT;i++) {
         const struct kd_entry *e=&c->dances[i];
         const uint16_t *outputs=(const uint16_t *)e;
-        if(e->term>1000 || (!e->term && (e->tap || e->hold || e->twice || e->tap_hold))) return false;
-        for(unsigned j=0;j<4;j++)if(outputs[j] && (outputs[j]==1 || !ks_supported(outputs[j]) ||
+        if((e->term & ~(KD_GUARD|KD_TERM_MASK)) || (e->term & KD_TERM_MASK)>1000 || (!(e->term & KD_TERM_MASK) && (e->tap || e->hold || e->twice || e->tap_hold))) return false;
+        if((e->term & KD_GUARD) && (e->tap || e->hold || e->tap_hold)) return false;
+        for(unsigned j=0;j<4;j++)if(outputs[j] && (outputs[j]==1 || outputs[j]==0x7c03 || (outputs[j]==0x7c00 && !((e->term & KD_GUARD) && j==2)) || !ks_supported(outputs[j]) ||
             (outputs[j]>=KD_BASE && outputs[j]<KD_BASE+KD_COUNT) || (outputs[j]>=0x2000 && outputs[j]<=0x51ff))) return false;
     }
     for (unsigned i = 0; i < KS_TERM_AT; i++)
@@ -98,8 +112,9 @@ bool ks_config_valid(const struct ks_config *c) {
         if (mask && (mask > 16 || (mask & (mask - 1))))
             return false;
     }
-    for (unsigned i = 0; i < KS_COMBOS; i++) {
-        const uint16_t *combo = c->keys + KS_COMBO_AT + i * 5;
+    for (unsigned i = 0; i < 64; i++) {
+        uint16_t combo[5];combo_entry(c,i,combo);
+        for(unsigned j=0;j<5;j++)if(!ks_supported(combo[j]))return false;
         unsigned n = 0;
         while (n < 4 && combo[n])
             n++;
@@ -115,7 +130,7 @@ bool ks_config_valid(const struct ks_config *c) {
                     return false;
         }
         for (unsigned k = 0; k < i; k++) {
-            const uint16_t *other = c->keys + KS_COMBO_AT + k * 5;
+            uint16_t other[5];combo_entry(c,k,other);
             unsigned same = 0, count = 0;
             for (unsigned j = 0; j < 4 && other[j]; j++) {
                 count++;
@@ -160,9 +175,17 @@ void ks_lock(struct ks_state *s) {
     s->staging = false;
     s->hold_since = -1;
 }
+static unsigned unlock_left(void) {
+#ifdef KEEBART_STUDIO_PHYSICAL
+    return (ksh_flags() & KSH_COMPACT) ? 1u : 0u;
+#else
+    return 0u;
+#endif
+}
+static unsigned unlock_right(void) { return KS_UNLOCK_RIGHT - unlock_left(); }
 static bool chord(struct ks_state *s) {
-    return (s->pressed & ((1ULL << 0) | (1ULL << KS_UNLOCK_RIGHT))) ==
-           ((1ULL << 0) | (1ULL << KS_UNLOCK_RIGHT));
+    uint64_t mask = (1ULL << unlock_left()) | (1ULL << unlock_right());
+    return (s->pressed & mask) == mask;
 }
 void ks_position(struct ks_state *s, unsigned pos, bool down, int64_t now) {
     if (pos >= KS_KEYS)
@@ -224,9 +247,11 @@ void ks_handle(struct ks_state *s, const uint8_t *in, size_t len, uint8_t out[32
         used = 7;
         break;
     case 6:
-    case 10:
     case 11:
         used = 4;
+        break;
+    case 10:
+        used = 5;
         break;
     case 14:
         used = 7 + (unsigned)p[6];
@@ -238,7 +263,7 @@ void ks_handle(struct ks_state *s, const uint8_t *in, size_t len, uint8_t out[32
         out[5] = 1;
         return;
     }
-    if (used > 26 || !zeros(p + used, 26 - used)) {
+    if (used > 26 || !zeros(p + used, 26 - used) || (op == 10 && p[4] > 1)) {
         out[5] = 2;
         return;
     }
@@ -266,8 +291,8 @@ void ks_handle(struct ks_state *s, const uint8_t *in, size_t len, uint8_t out[32
         wr32(r + 12, s->active.generation);
         break;
     case 1:
-        r[3] = 0;
-        r[4] = KS_UNLOCK_RIGHT; /* fall through */
+        r[3] = unlock_left();
+        r[4] = unlock_right(); /* fall through */
     case 3:
         r[0] = s->unlocked;
         r[1] = s->unlocking;
@@ -342,7 +367,14 @@ void ks_handle(struct ks_state *s, const uint8_t *in, size_t len, uint8_t out[32
             out[5] = 4;
             break;
         }
-        if (!s->unlocked && memcmp(s->active.macros, s->staged.macros, KM_BYTES) && !ks_restore_matches(s->staged.macros, KM_BYTES)) {
+        bool protected_dance = false;
+        for (unsigned i = 0; i < KD_COUNT; i++) {
+            const struct kd_entry *d = &s->staged.dances[i];
+            if ((d->tap == 0x7c00 || d->hold == 0x7c00 || d->twice == 0x7c00 || d->tap_hold == 0x7c00) &&
+                memcmp(&s->active.dances[i], d, sizeof(*d)))
+                protected_dance = true;
+        }
+        if (!s->unlocked && (protected_dance || (memcmp(s->active.macros, s->staged.macros, KM_BYTES) && !ks_restore_matches(s->staged.macros, KM_BYTES)))) {
             out[5] = 3;
             break;
         }

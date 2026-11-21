@@ -6,7 +6,7 @@
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 #pragma GCC diagnostic ignored "-Wunused-but-set-variable"
 #define VIAL_COMBO_ENABLE 1
-#define VIAL_COMBO_ENTRIES 32
+#define VIAL_COMBO_ENTRIES 64
 #define NO_ACTION_TAPPING 1
 #define KEEBART_STUDIO_TAP_DANCE 1
 #define COMBO_TERM kc_term()

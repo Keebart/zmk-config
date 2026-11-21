@@ -5,7 +5,11 @@ static void output(kd_emit emit, void *ctx, const struct kd_state *s, uint16_t c
 }
 static void resolve(struct kd_state *s, bool interrupted, kd_emit emit, void *ctx) {
     uint16_t code = 0;
-    if (s->count == 1) {
+    if (s->entry.term & KD_GUARD) {
+        // Upstream Miryoku's ACTION_TAP_DANCE_FN fires only for count == 2,
+        // including an interruption or a held second press.
+        code = s->count == 2 ? s->entry.twice : 0;
+    } else if (s->count == 1) {
         code = s->down && !interrupted && s->entry.hold ? s->entry.hold : s->entry.tap;
     } else if (s->count == 2) {
         if (interrupted) {
@@ -18,6 +22,12 @@ static void resolve(struct kd_state *s, bool interrupted, kd_emit emit, void *ct
             }
         } else if (s->entry.twice) code=s->entry.twice;
         else { output(emit,ctx,s,s->entry.tap,KD_TAP);code=s->entry.tap; }
+    }
+    if (s->entry.term & KD_GUARD) {
+        s->resolved=true;s->output=0;
+        output(emit,ctx,s,code,KD_TAP);
+        if (!s->down) memset(s,0,sizeof(*s));
+        return;
     }
     s->resolved=true;s->output=code;
     output(emit,ctx,s,code,s->down ? KD_DOWN : KD_TAP);
@@ -44,14 +54,21 @@ bool kd_input(struct kd_engine *e, unsigned position, uint16_t code, bool down, 
     if (s && !down) {
         s->down=false;
         if(s->resolved) { output(emit,ctx,s,s->output,KD_UP);memset(s,0,sizeof(*s)); }
+        // Match Vial's early release decisions: no further tap can change a
+        // tap/hold-only dance, or a completed configured double tap. Guarded
+        // Miryoku dances must still wait so a third press can cancel them.
+        else if (!(s->entry.term & KD_GUARD) &&
+                 ((s->count==1 && s->entry.tap && s->entry.hold && !s->entry.twice && !s->entry.tap_hold) ||
+                  (s->count==2 && s->entry.twice))) resolve(s,false,emit,ctx);
         return true;
     }
     if(code<KD_BASE || code>=KD_BASE+count || count>KD_COUNT)return false;
     if(!down)return true;
     if(!s){s=free;if(!s)return true;s->used=true;s->position=position;s->entry=entries[code-KD_BASE];}
     if(s->down || s->resolved)return true;
-    s->down=true;s->due=now+(s->entry.term ? s->entry.term : 200);
+    s->down=true;s->due=now+((s->entry.term & KD_TERM_MASK) ? (s->entry.term & KD_TERM_MASK) : 200);
     if(s->count<255)s->count++;
+    if(s->entry.term & KD_GUARD)return true;
     if(s->count==3)for(unsigned i=0;i<3;i++)output(emit,ctx,s,s->entry.tap,KD_TAP);
     else if(s->count>3)output(emit,ctx,s,s->entry.tap,KD_TAP);
     return true;

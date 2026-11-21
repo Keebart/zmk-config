@@ -1,7 +1,7 @@
 #include "macro_vm.h"
 #include "locales/locale.h"
 #include <string.h>
-static bool key_valid(uint16_t key) { return (key <= 0x1fff && (key & 255) >= 4) || ksl_character(key); }
+static bool key_valid(uint16_t key) { return (key <= 0x1fff && (key & 255) >= 4) || ksl_character(key) || (key>=0xc100&&key<0xc180); }
 static uint16_t ascii_key(uint8_t c) {
     if (c >= 'a' && c <= 'z') return 4 + c - 'a';
     if (c >= 'A' && c <= 'Z') return 0x204 + c - 'A';
@@ -19,14 +19,19 @@ static uint16_t ascii_key(uint8_t c) {
     return 0;
 }
 /* One bounded instruction; zero is the macro terminator. */
-static bool next(const uint8_t *p,size_t len,size_t *at,uint8_t *op,uint16_t *value) {
+static bool next(const uint8_t *p,size_t len,size_t *at,uint8_t *op,uint32_t *value) {
     if(*at>=len) return false;
     uint8_t c=p[(*at)++];
     if(!c) {*op=0;*value=0;return true;}
     if(c!=1) {*op=1;*value=ascii_key(c);return *value!=0;}
     if(*at+2>len) return false;
     *op=p[(*at)++];uint8_t a=p[(*at)++];
-    if(!a || *op<1 || *op>7) return false;
+    if(!a || *op<1 || *op>8) return false;
+    if(*op==8) {
+        if(*at+2>len || !p[*at] || !p[*at+1])return false;
+        *value=(uint32_t)(a-1)+(uint32_t)(p[*at]-1)*255+(uint32_t)(p[*at+1]-1)*65025;*at+=2;
+        return *value>=32 && *value<=0x10ffff && !(*value>=0x7f&&*value<=0x9f) && !(*value>=0xd800&&*value<=0xdfff);
+    }
     if(*op>=4) {
         if(*at>=len) return false;
         uint8_t b=p[(*at)++];if(!b)return false;
@@ -41,16 +46,16 @@ bool km_valid(const uint8_t *p,size_t len,unsigned count) {
     for(unsigned macro=0;macro<count;macro++) {
         uint16_t held[KM_HELD]={0};unsigned n=0,steps=0;uint64_t duration=0;
         for(;;) {
-            uint8_t op;uint16_t value;
+            uint8_t op;uint32_t value;
             if(!next(p,len,&at,&op,&value))return false;
-            if(!op){if(n)return false;break;}
+            if(!op)break;
             if(++steps>4096)return false;
-            duration+=op==4?value:20;
+            duration+=op==4?value:op==8?200:20;
             if(duration>600000)return false;
             unsigned i=0;while(i<n && held[i]!=value)i++;
             if(op==1 && i<n)return false;
             if(op==2) {if(i<n || n==KM_HELD)return false;held[n++]=value;}
-            if(op==3) {if(i==n)return false;held[i]=held[--n];}
+            if(op==3 && i<n)held[i]=held[--n];
         }
     }
     while(at<len)if(p[at++])return false;
@@ -62,25 +67,37 @@ void km_cancel(struct km_vm *v,km_emit emit,void *ctx) {
     memset(v,0,sizeof(*v));
 }
 bool km_start(struct km_vm *v,const uint8_t *p,size_t len,unsigned index,int64_t now,km_emit emit,void *ctx) {
-    km_cancel(v,emit,ctx);
-    if(index>=KM_COUNT || !km_valid(p,len,KM_COUNT))return false;
+    if(index>=KM_COUNT || !km_valid(p,len,KM_COUNT)){km_cancel(v,emit,ctx);return false;}
+    /* A new macro interrupts the sequence, but retains explicit key holds. */
+    if(v->tap){emit(ctx,v->tap,false);v->tap=0;}
+    v->active=false;
     size_t at=0;
     for(unsigned i=0;i<index;i++)while(p[at++]){}
     v->bytes=p;v->at=at;v->end=len;v->due=now;v->active=true;return true;
 }
-void km_tick(struct km_vm *v,int64_t now,km_emit emit,void *ctx) {
+void km_tick_text(struct km_vm *v,int64_t now,km_emit emit,km_text text,void *ctx) {
     if(!v->active || now<v->due)return;
+    if(text&&!text(ctx,0))return;
     if(v->tap) {emit(ctx,v->tap,false);v->tap=0;v->due=now+10;return;}
-    uint8_t op;uint16_t value;
-    if(!next(v->bytes,v->end,&v->at,&op,&value) || !op) {km_cancel(v,emit,ctx);return;}
+    size_t start=v->at;uint8_t op;uint32_t value;
+    if(!next(v->bytes,v->end,&v->at,&op,&value)){km_cancel(v,emit,ctx);return;}
+    if(!op){v->active=false;v->bytes=NULL;v->at=v->end=0;return;}
+    if(op==8){if(!text){km_cancel(v,emit,ctx);return;}if(!text(ctx,value))v->at=start;else v->due=now+10;return;}
     v->due=now+(op==4?value:op==1?10:20);
     if(op==4)return;
-    if(op==1)v->tap=value;
-    if(op==2) {if(v->held_count==KM_HELD){km_cancel(v,emit,ctx);return;} v->held[v->held_count++]=value;}
-    if(op==3) {
-        unsigned i=0;while(i<v->held_count && v->held[i]!=value)i++;
-        if(i==v->held_count){km_cancel(v,emit,ctx);return;}
-        v->held[i]=v->held[--v->held_count];
+    unsigned i=0;while(i<v->held_count && v->held[i]!=value)i++;
+    if(op==1){
+        /* Tapping a persistently held key must not release that hold. */
+        if(i<v->held_count)return;
+        v->tap=value;
     }
+    if(op==2) {
+        if(i<v->held_count)return;
+        if(v->held_count==KM_HELD){km_cancel(v,emit,ctx);return;}
+        v->held[v->held_count++]=value;
+    }
+    if(op==3 && i<v->held_count)v->held[i]=v->held[--v->held_count];
     emit(ctx,value,op!=3);
 }
+
+void km_tick(struct km_vm *v,int64_t now,km_emit emit,void *ctx){km_tick_text(v,now,emit,NULL,ctx);}

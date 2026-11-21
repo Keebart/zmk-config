@@ -18,3 +18,6 @@ bool km_valid(const uint8_t *, size_t, unsigned);
 void km_cancel(struct km_vm *, km_emit, void *);
 bool km_start(struct km_vm *, const uint8_t *, size_t, unsigned, int64_t, km_emit, void *);
 void km_tick(struct km_vm *, int64_t, km_emit, void *);
+// c==0 queries readiness; false defers without consuming the instruction.
+typedef bool (*km_text)(void *, uint32_t);
+void km_tick_text(struct km_vm *, int64_t, km_emit, km_text, void *);

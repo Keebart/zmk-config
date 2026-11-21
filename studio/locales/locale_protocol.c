@@ -25,9 +25,22 @@ uint8_t ksl_handle(struct ksl_transaction *s,const uint8_t p[25],uint8_t out[25]
         memcpy(s->staged+at,p+8,n);for(unsigned i=0;i<n;i++)s->seen[(at+i)/8]|=1U<<((at+i)%8);return KSL_OK;
     }
     if(p[0]!=3)return KSL_INVALID;
-    unsigned end=KSL_BINDING_AT+rd16(s->staged+480)*12U;if(end>KSL_LAYER_RULE_AT)return KSL_INVALID;
-    if(s->staged[6]>KSL_ACTIONS||s->staged[482]>1||s->staged[483]>32||s->staged[7]>7)return KSL_INVALID;
-    unsigned tail=KSL_LAYER_RULE_AT-(s->staged[482]?s->staged[6]*4:0)-s->staged[483]*6-((s->staged[7]&2)?16:0)-((s->staged[7]&4)?2:0);
+    if(s->staged[4]>KSL_COMPUTERS||s->staged[6]>KSL_ACTIONS)return KSL_INVALID;
+    unsigned end=ksl_prefix_end(s->staged);if(end>KSL_LAYER_RULE_AT)return KSL_INVALID;
+    if(s->staged[6]>KSL_ACTIONS||s->staged[482]>1||s->staged[483]>32)return KSL_INVALID;
+    unsigned tail=KSL_LAYER_RULE_AT-(s->staged[482]?s->staged[6]*4:0)-s->staged[483]*6-((s->staged[7]&2)?16:0)-((s->staged[7]&4)?2:0)-ksl_typing_size(s->staged);
+    if(!kse_valid(s->staged))return KSL_INVALID;
+    tail-=kse_size(s->staged);
+    if(s->staged[7]&32){
+        unsigned names=rd16(s->staged+tail-2);
+        if(names>tail-KSL_BINDING_AT)return KSL_INVALID;
+        tail-=names;
+    }
+    if(s->staged[7]&64){
+        unsigned names=rd16(s->staged+tail-2);
+        if(names>tail-KSL_BINDING_AT)return KSL_INVALID;
+        tail-=names;
+    }
     if(end>tail)return KSL_INVALID;
     for(unsigned i=0;i<KSL_BYTES;i++)if((i<end||i>=tail)&&!(s->seen[i/8]&(1U<<(i%8))))return KSL_INVALID;
     if(!ksl_valid(s->staged)||ksl_crc(s->staged,KSL_CRC_AT)!=s->crc)return KSL_INVALID;

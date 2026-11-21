@@ -24,7 +24,7 @@ struct ks_config {
     uint16_t keys[KS_COUNT];
     uint8_t lighting[6];                      /* effect LE16, speed, hue, saturation, value */
     uint8_t palette[KS_PALETTE_SIZE];         /* all RGB layers, then all indicator layers */
-    uint8_t mode, default_layer, reserved[2]; /* 0 animation, 1 per-key */
+    uint8_t mode, default_layer, animation_layers[2]; /* mode 0: all animation; mode 1: per-key except LE16 layer mask */
     uint8_t macros[KM_BYTES];
     struct kd_entry dances[KD_COUNT];
     struct ks_override overrides[KS_OVERRIDE_COUNT];

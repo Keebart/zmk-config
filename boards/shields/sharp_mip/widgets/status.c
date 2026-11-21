@@ -26,6 +26,11 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include <zmk/keymap.h>
 #include <zmk/wpm.h>
 
+#if IS_ENABLED(CONFIG_KEEBART_STUDIO)
+#include "display_event.h"
+static void display_key_text(char out[192], const char *, const lv_font_t *, unsigned);
+#endif
+
 static sys_slist_t widgets = SYS_SLIST_STATIC_INIT(&widgets);
 
 struct output_status_state {
@@ -186,8 +191,21 @@ static void draw_bottom(lv_obj_t *widget, lv_color_t cbuf[], const struct status
 
         lv_canvas_draw_text(canvas, 0, 5, 68, &label_dsc, text);
     } else {
+#if IS_ENABLED(CONFIG_KEEBART_STUDIO)
+        char fitted[192];
+        display_key_text(fitted, state->layer_label, &lv_font_montserrat_14, 32);
+        lv_canvas_draw_text(canvas, 0, 5, 68, &label_dsc, fitted);
+#else
         lv_canvas_draw_text(canvas, 0, 5, 68, &label_dsc, state->layer_label);
+#endif
     }
+
+#if IS_ENABLED(CONFIG_KEEBART_STUDIO)
+    if(state->last_key[0]) {
+        init_label_dsc(&label_dsc, LVGL_FOREGROUND, &lv_font_montserrat_12, LV_TEXT_ALIGN_CENTER);
+        lv_canvas_draw_text(canvas, 0, 40, 68, &label_dsc, state->last_key);
+    }
+#endif
 
     // Rotate canvas
     rotate_canvas(canvas, cbuf);
@@ -266,7 +284,13 @@ ZMK_SUBSCRIPTION(widget_output_status, zmk_ble_active_profile_changed);
 
 static void set_layer_status(struct zmk_widget_status *widget, struct layer_status_state state) {
     widget->state.layer_index = state.index;
+#if IS_ENABLED(CONFIG_KEEBART_STUDIO)
+    extern void ks_display_layer_name(unsigned, char *, size_t);
+    ks_display_layer_name(state.index, widget->studio_layer_label, sizeof(widget->studio_layer_label));
+    widget->state.layer_label = widget->studio_layer_label;
+#else
     widget->state.layer_label = state.label;
+#endif
 
     draw_bottom(widget->obj, widget->cbuf3, &widget->state);
 }
@@ -342,3 +366,7 @@ int zmk_widget_status_init(struct zmk_widget_status *widget, lv_obj_t *parent) {
 }
 
 lv_obj_t *zmk_widget_status_obj(struct zmk_widget_status *widget) { return widget->obj; }
+
+#if IS_ENABLED(CONFIG_KEEBART_STUDIO)
+#include "display_key_widget.inc"
+#endif

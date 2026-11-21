@@ -4,6 +4,7 @@ config KEEBART_STUDIO
     depends on !ZMK_STUDIO
     select SETTINGS
     select USB_DEVICE_HID
+    select ZMK_USB_BOOT
 
 config KEEBART_STUDIO_PERIPHERAL
     bool "Keebart Studio split lighting receiver"

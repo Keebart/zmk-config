@@ -27,7 +27,8 @@ uint32_t timer_read32(void){return io->clock();}
 uint32_t timer_elapsed32(uint32_t at){return timer_read32()-at;}
 uint8_t read_source_layers_cache(keypos_t p){return p.row;}
 void wait_ms(unsigned n){io->wait(n);}
-void send_keyboard_report(void){io->send();}
+bool ks_override_ready(void){return io!=NULL;}
+void send_keyboard_report(void){if(io)io->send();}
 void add_key(uint8_t c){io->press(c);}
 void del_key(uint8_t c){io->release(c);}
 void register_code(uint8_t c){io->press(c);io->send();}

@@ -9,8 +9,8 @@ static const struct ks_config *config;
 static ks_emit output;
 static void *context;
 static int64_t clock_ms;
-combo_t key_combos[KS_COMBOS];
-static uint16_t trigger_keys[KS_COMBOS][5];
+combo_t key_combos[64];
+static uint16_t trigger_keys[64][5];
 extern void kc_engine_reset(void);
 extern int64_t kc_engine_deadline(int64_t);
 uint16_t kc_clock(void){return (uint16_t)clock_ms;}
@@ -31,13 +31,16 @@ void kc_record(keyrecord_t *record){
 static void bind(struct ks_combo_engine *s,const struct ks_config *c,int64_t at,ks_emit emit,void *arg){
     if(current!=s || s->cookie!=KC_COOKIE){
         kc_engine_reset();memset(key_combos,0,sizeof(key_combos));s->cookie=KC_COOKIE;current=s;
-        for(unsigned i=0;i<KS_COMBOS;i++)key_combos[i].keys=trigger_keys[i];
+        for(unsigned i=0;i<64;i++)key_combos[i].keys=trigger_keys[i];
     }
     config=c;clock_ms=at;output=emit;context=arg;
-    for(unsigned i=0;i<KS_COMBOS;i++){
-        memcpy(trigger_keys[i],c->keys+KS_COMBO_AT+i*5,4*sizeof(uint16_t));
+    for(unsigned i=0;i<64;i++){
+        uint16_t extra[5];const uint16_t *entry;
+        if(i<KS_COMBOS)entry=c->keys+KS_COMBO_AT+i*5;
+        else {ksl_extra_combo(c->locales,i-KS_COMBOS,extra);entry=extra;}
+        memcpy(trigger_keys[i],entry,4*sizeof(uint16_t));
         trigger_keys[i][4]=0; // Native QMK requires a terminator after four triggers.
-        key_combos[i].keycode=c->keys[KS_COMBO_AT+i*5+4];
+        key_combos[i].keycode=entry[4];
     }
 }
 int64_t ks_combo_deadline(const struct ks_combo_engine *s,const struct ks_config *c){

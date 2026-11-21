@@ -1,6 +1,14 @@
+#include "locales/power.h"
+#include "locales/reset_key.h"
 #include "consumer_keys.h"
 #define DT_DRV_COMPAT keebart_studio_key
 #include "core.h"
+extern void ks_lighting_wake(void);
+extern void ks_led_test_set(uint8_t);
+extern void kdg_zmk_handle(const uint8_t[32], uint8_t[32]);
+extern bool ks_host_reset(uint32_t);
+extern void ks_host_reset_status(const uint8_t[32], uint8_t[32]);
+extern void ks_word_action(uint16_t, bool);
 void ksn_task(void);
 bool ksn_reset(void);
 void ksn_handle(const uint8_t[32],uint8_t[32],bool);
@@ -34,6 +42,7 @@ void ksn_handle(const uint8_t[32],uint8_t[32],bool);
 extern int keebart_storage_error(void);
 static struct ks_state state;
 const struct ks_override *ks_override_entries(void){return state.active.overrides;}
+const uint8_t *ks_locale_record(void){return state.active.locales;}
 extern void ks_override_lifecycle_cancel(void);
 static struct ks_store storage;
 static struct ks_combo_engine combos;
@@ -71,7 +80,12 @@ K_WORK_DELAYABLE_DEFINE(combo_work, combo_timeout);
 // layers.
 static uint16_t pressed_codes[KS_LAYERS][KS_KEYS];
 K_MUTEX_DEFINE(state_mutex);
-K_MSGQ_DEFINE(requests, 32, 2, 4);
+static struct kspw_state power_state;
+static uint8_t saved_power[KSPW_RECORD_BYTES];
+static bool has_saved_power;
+static struct ks_reset_key reset_key;
+struct studio_request { uint8_t data[32]; bool physical_reset; };
+K_MSGQ_DEFINE(requests, sizeof(struct studio_request), 4, 4);
 K_SEM_DEFINE(tx_ready, 1, 1);
 static const struct device *hid;
 static int write_record(const char *name, const void *data, size_t len) {
@@ -89,19 +103,26 @@ static void save_lighting(struct k_work *work) {
     k_mutex_unlock(&state_mutex);
 }
 static int settings_read(const char *name, size_t len, settings_read_cb read, void *arg) {
+    if (!strcmp(name, "power")) {
+        if (len != sizeof(saved_power) || read(arg, saved_power, len) != len)
+            return -EINVAL;
+        has_saved_power = true;
+        return 0;
+    }
     static uint8_t buffer[KS_STORE_CHUNK];
     if (len > sizeof(buffer) || read(arg, buffer, len) != len)
         return -EINVAL;
     return ks_store_receive(&storage, name, buffer, len) ? 0 : -EINVAL;
 }
-static void locale_load(void);
+static void locale_load(bool);
 static void locale_endpoint(void);
 static void locale_cancel(void);
 static void pointer_cancel(void);
 static void locale_schedule(void);
 static int keebart_settings_commit(void) {
     ks_store_load(&storage, &state);
-    locale_load();
+    kspw_init(&power_state, state.active.locales, has_saved_power ? saved_power : NULL, state.active.generation);
+    locale_load(false);
     base_layer = state.active.default_layer;
     if (base_layer)
         zmk_keymap_layer_activate(base_layer);
@@ -109,12 +130,37 @@ static int keebart_settings_commit(void) {
 }
 SETTINGS_STATIC_HANDLER_DEFINE(keebart, "keebart", NULL, settings_read, keebart_settings_commit,
                                NULL);
+void ks_power_options(uint8_t out[6]) {
+    k_mutex_lock(&state_mutex, K_FOREVER);
+    kspw_options(state.active.locales, out);
+    k_mutex_unlock(&state_mutex);
+}
+void ks_power_flush(void) {
+    uint8_t record[KSPW_RECORD_BYTES];
+    bool write = false;
+    k_mutex_lock(&state_mutex, K_FOREVER);
+    if (kspw_due(&power_state, k_uptime_get_32(), state.pressed != 0 || state.staging || state.unlocking)) {
+        kspw_record(&power_state, state.active.locales, record);
+        power_state.dirty = false;
+        write = true;
+    }
+    k_mutex_unlock(&state_mutex);
+    if (write && settings_save_one("keebart/power", record, sizeof(record))) {
+        k_mutex_lock(&state_mutex, K_FOREVER);
+        power_state.dirty = true;
+        k_mutex_unlock(&state_mutex);
+    }
+}
 static int observe(const zmk_event_t *event) {
     const struct zmk_position_state_changed *pos = as_zmk_position_state_changed(event);
     k_mutex_lock(&state_mutex, K_FOREVER);
     if (pos) {
         lighting_activity = k_uptime_get_32();
         ks_position(&state, pos->position, pos->state, pos->timestamp);
+        if (!pos->state && ks_reset_key_take(&reset_key, k_uptime_get_32(), state.pressed == 0, state.unlocking || state.staging)) {
+            struct studio_request request={.physical_reset=true};
+            k_msgq_put(&requests, &request, K_NO_WAIT);
+        }
         locale_schedule();
         if (pos->state)
             ks_render_press(&renderer, pos->position, pos->timestamp);
@@ -147,9 +193,11 @@ static int observe(const zmk_event_t *event) {
         kd_cancel(&dances,dance_emit,NULL);
         km_cancel(&macro_vm, macro_emit, NULL);
         ks_lock(&state);
+        ks_reset_key_cancel(&reset_key);
         k_msgq_purge(&requests);
     }
     k_mutex_unlock(&state_mutex);
+    ks_lighting_wake();
     return ZMK_EV_EVENT_BUBBLE;
 }
 ZMK_LISTENER(keebart_observe, observe);
@@ -234,10 +282,14 @@ static int invoke(struct zmk_behavior_binding *binding, struct zmk_behavior_bind
     k_mutex_lock(&state_mutex, K_FOREVER);
     if (pressed) {
         kd_input(&dances,pos,0,true,event.timestamp,state.active.dances,KD_COUNT,dance_emit,NULL);
-        uint16_t code = ksl_binding(state.active.locales,locale_runtime.active,ks_binding(&state,l,pos));
+        unsigned mapped=locale_runtime.extended.swap?kse_swap_position(state.active.locales,pos):pos;
+        uint16_t code = ksl_binding(state.active.locales,locale_runtime.active,ks_binding(&state,l,mapped));
+        if(code!=1&&locale_runtime.extended.swap_once){locale_runtime.extended.swap=false;locale_runtime.extended.swap_once=false;}
+        if(code!=1)display_key_pressed(code);
         pressed_codes[l][pos] = code;
     }
     uint16_t code = pressed_codes[l][pos];
+    if (code != 1) ks_reset_key_event(&reset_key, pos, code, pressed, k_uptime_get_32(), state.unlocking || state.staging);
     if (code == 1) {
         k_mutex_unlock(&state_mutex);
         return ZMK_BEHAVIOR_TRANSPARENT;
@@ -301,12 +353,14 @@ static int sensor_process(struct zmk_behavior_binding *b, struct zmk_behavior_bi
 static void encoder_run(void *a, void *b, void *c) {
     struct encoder_tap tap;
     for (;;) {
-        k_msgq_get(&encoder_taps, &tap, K_FOREVER);
+        if (k_msgq_get(&encoder_taps, &tap, K_FOREVER) != 0)
+            continue;
         k_mutex_lock(&state_mutex, K_FOREVER);
         tap.event.timestamp = k_uptime_get();
         execute(tap.code, tap.event, true);
+        uint16_t delay=ks_locale_tap_delay(tap.code);
         k_mutex_unlock(&state_mutex);
-        k_msleep(5);
+        if(delay)k_msleep(delay);
         k_mutex_lock(&state_mutex, K_FOREVER);
         tap.event.timestamp = k_uptime_get();
         execute(tap.code, tap.event, false);
@@ -358,14 +412,14 @@ int ks_lighting_action(unsigned action, int value) {
         l[2] = CLAMP((int)l[2] + value, 0, 255);
         break;
     default:
-        k_mutex_unlock(&state_mutex);
+        k_mutex_unlock(&state_mutex);ks_lighting_wake();
         return -EINVAL;
     }
     state.active.generation++;
     state.active.crc = ks_crc(&state.active, offsetof(struct ks_config, crc));
     state.staging = false;
     k_work_reschedule(&lighting_save_work, K_MSEC(1000));
-    k_mutex_unlock(&state_mutex);
+    k_mutex_unlock(&state_mutex);ks_lighting_wake();
     return 0;
 }
 bool ks_lighting_on(void) { return lighting_enabled; }
@@ -375,14 +429,14 @@ static void macro_emit(void *ctx, uint16_t code, bool down) {
 }
 static void macro_run(struct k_work *work) {
     k_mutex_lock(&state_mutex, K_FOREVER);
-    km_tick(&macro_vm, k_uptime_get(), macro_emit, NULL);
+    km_tick_text(&macro_vm, k_uptime_get(), macro_emit, locale_text, NULL);
     if (macro_vm.active) k_work_reschedule(&macro_work, K_MSEC(5));
     k_mutex_unlock(&state_mutex);
 }
 static void dance_emit(void *ctx, unsigned position, uint16_t code, enum kd_action action) {
     struct zmk_behavior_binding_event e={.position=KS_KEYS+KS_ENCODERS+KS_COMBOS+256+position,.timestamp=k_uptime_get(),.layer=0,.source=ZMK_POSITION_STATE_CHANGE_SOURCE_LOCAL};
     execute(code,e,action!=KD_UP);
-    if(action==KD_TAP){k_msleep(5);e.timestamp=k_uptime_get();execute(code,e,false);}
+    if(action==KD_TAP){uint16_t delay=ksl_tap_delay(state.active.locales,code);if(delay)k_msleep(delay);e.timestamp=k_uptime_get();execute(code,e,false);}
 }
 static void dance_tick(struct k_work *work) {
     k_mutex_lock(&state_mutex,K_FOREVER);
@@ -393,6 +447,8 @@ static void dance_tick(struct k_work *work) {
 }
 static int execute(uint16_t c, struct zmk_behavior_binding_event e, bool down) {
     c=ksl_binding(state.active.locales,locale_runtime.active,c);
+    if(c==KS_RESET_KEY)return 0;
+    if(c==0x7c73){ks_word_action(c,down);return 0;}
     if(locale_event(c,e,down))return 0;
     if(repeat_event(c,e,down))return 0;
     if(e.position<KS_KEYS+KS_ENCODERS+KS_COMBOS+256) {
@@ -407,7 +463,7 @@ static int execute(uint16_t c, struct zmk_behavior_binding_event e, bool down) {
             k_work_reschedule(&macro_work, K_NO_WAIT);
         return 0;
     }
-    if (c == 41 && down && macro_vm.active && e.position < KS_KEYS + KS_ENCODERS + KS_COMBOS) { km_cancel(&macro_vm, macro_emit, NULL); return 0; }
+    if (c == 41 && down && (macro_vm.active || macro_vm.held_count) && e.position < KS_KEYS + KS_ENCODERS + KS_COMBOS) { km_cancel(&macro_vm, macro_emit, NULL); return 0; }
 
     unsigned layer = c & 15;
     if (c >= 0x5000 && c <= 0x51ff) {
@@ -451,10 +507,10 @@ static int execute(uint16_t c, struct zmk_behavior_binding_event e, bool down) {
             tap_press[layer] = e.timestamp;
             zmk_keymap_layer_activate(layer);
         } else {
-            if (e.timestamp - tap_press[layer] < 200) {
+            if (e.timestamp - tap_press[layer] < ksl_hold_term(state.active.locales)) {
                 tap_count[layer] =
-                    e.timestamp - tap_release[layer] < 200 ? tap_count[layer] + 1 : 1;
-                if (tap_count[layer] >= 5) {
+                    e.timestamp - tap_release[layer] < ksl_hold_term(state.active.locales) ? tap_count[layer] + 1 : 1;
+                if (tap_count[layer] >= ksl_tapping_toggle(state.active.locales)) {
                     tap_latched[layer] = !tap_latched[layer];
                     tap_count[layer] = 0;
                 }
@@ -493,6 +549,22 @@ static int execute(uint16_t c, struct zmk_behavior_binding_event e, bool down) {
             zmk_keymap_layer_deactivate(3);
         return 0;
     }
+    if (kspw_key(c)) {
+        if (!state.unlocking && !state.staging) {
+            if (down && !lighting_enabled && (c == 0x7820 || c == 0x7e20 || c == 0x7842 || c == 0x7840)) {
+                lighting_enabled = true;
+                c = 0x7840;
+            }
+            uint32_t crc = ksl_crc(state.active.locales, KSL_CRC_AT);
+            kspw_action(&power_state, state.active.locales, c, down, k_uptime_get_32());
+            if (crc != ksl_crc(state.active.locales, KSL_CRC_AT)) {
+                state.active.generation++;
+                state.active.crc = ks_crc(&state.active, offsetof(struct ks_config, crc));
+                ks_lighting_wake();
+            }
+        }
+        return 0;
+    }
     if ((c >= 0x7820 && c <= 0x782a) || (c >= 0x7e20 && c <= 0x7e22)) {
         if (!down)
             return 0;
@@ -526,7 +598,11 @@ bool ks_frame(uint8_t out[KS_KEYS][3]) {
                            activity == ZMK_ACTIVITY_ACTIVE);
     ks_render(&renderer, &state.active, zmk_keymap_highest_layer_active(), host_locks, awake,
               k_uptime_get(), out);
-    bool streaming = awake && state.active.lighting[5] != 0;
+    uint8_t factor=(unsigned)kse_brightness(state.active.locales,k_uptime_get_32()-lighting_activity,locale_runtime.extended.dim_soon)*kspw_factor(state.active.locales)/255;
+    for(unsigned i=0;i<KS_KEYS;i++)for(unsigned j=0;j<3;j++)out[i][j]=(unsigned)out[i][j]*factor/255;
+    unsigned layer=zmk_keymap_highest_layer_active();
+    bool animation=!state.active.mode || (((unsigned)state.active.animation_layers[0] | (unsigned)state.active.animation_layers[1]<<8)&(1u<<layer));
+    bool streaming = awake && state.active.lighting[5] && factor && (animation || kse_options(state.active.locales)[20] || kse_options(state.active.locales)[21]);
     k_mutex_unlock(&state_mutex);
     return streaming;
 }
@@ -537,13 +613,18 @@ static int set_report(const struct device *dev, struct usb_setup_packet *setup, 
                       uint8_t **data) {
     if (setup->wValue != 0x0200 || *len != 32)
         return -EINVAL;
-    return k_msgq_put(&requests, *data, K_NO_WAIT);
+    struct studio_request request={0};
+    memcpy(request.data, *data, 32);
+    return k_msgq_put(&requests, &request, K_NO_WAIT);
 }
 static void out_ready(const struct device *dev) {
     uint8_t data[64];
     uint32_t n = 0;
-    if (hid_int_ep_read(dev, data, sizeof(data), &n) == 0 && n == 32)
-        k_msgq_put(&requests, data, K_NO_WAIT);
+    if (hid_int_ep_read(dev, data, sizeof(data), &n) == 0 && n == 32) {
+        struct studio_request request={0};
+        memcpy(request.data, data, 32);
+        k_msgq_put(&requests, &request, K_NO_WAIT);
+    }
 }
 static void in_ready(const struct device *dev) { k_sem_give(&tx_ready); }
 static const struct hid_ops ops = {
@@ -558,11 +639,48 @@ static int init(void) {
     return usb_hid_init(hid);
 }
 SYS_INIT(init, APPLICATION, 51);
+static void led_test_request(const uint8_t *in, uint8_t *out) {
+    memset(out, 0, 32);
+    memcpy(out, in, 5);
+    if (in[0] != 'K' || in[1] != 'S' || in[2] != 3 || in[3] != 23 || in[5] || in[6] > 3) {
+        out[5] = 2;
+        return;
+    }
+    for (unsigned i = 7; i < 32; i++)
+        if (in[i]) {
+            out[5] = 2;
+            return;
+        }
+    if (in[6] && state.unlocking) {
+        out[5] = 3;
+        return;
+    }
+    ks_led_test_set(in[6]);
+    out[6] = in[6];
+}
 static void run(void *a, void *b, void *c) {
     uint8_t input[32], output[32];
     for (;;) {
-        k_msgq_get(&requests, input, K_FOREVER);
+        struct studio_request request;
+        // USB lifecycle changes purge this queue and wake waiters without a message.
+        if (k_msgq_get(&requests, &request, K_FOREVER) != 0)
+            continue;
+        if (!request.physical_reset)
+            memcpy(input, request.data, sizeof(input));
         k_mutex_lock(&state_mutex, K_FOREVER);
+        if (request.physical_reset) {
+            if(state.pressed || state.staging || state.unlocking){k_mutex_unlock(&state_mutex);continue;}
+            memset(input, 0, sizeof(input));
+            input[0] = 'K';
+            input[1] = 'S';
+            input[2] = 3;
+            input[3] = 10;
+            for (unsigned i = 0; i < 4; i++)
+                input[6 + i] = state.active.generation >> (8 * i);
+            input[10] = 1;
+            state.unlocked = true;
+            state.unlocking = false;
+        }
         state.storage_error=keebart_storage_error();
         uint8_t previous_default = state.active.default_layer;
         bool locale_changed = input[3]==10 || (input[3]==8 && memcmp(state.active.locales,state.staged.locales,KSL_BYTES));
@@ -580,10 +698,14 @@ static void run(void *a, void *b, void *c) {
             if(input[3]==10 || (input[3]==8 && ks_mapping_changed(&state.active,&state.staged))){ks_override_lifecycle_cancel();pointer_cancel();}
             if(input[3]==17)locale_request(input,output);
             else if(input[3]==16)ksn_handle(input,output,!state.unlocking && !state.staging);
+            else if(input[3]==21)kdg_zmk_handle(input,output);
+            else if(input[3]==22)ks_host_reset_status(input,output);
+            else if(input[3]==23)led_test_request(input,output);
             else ks_handle(&state, input, sizeof(input), output, k_uptime_get(), persist, ks_stock);
         }
         if ((input[3] == 8 || input[3] == 10) && !output[5]) {
-            if(locale_changed)locale_load();
+            kspw_committed(&power_state, state.active.generation);
+            if(locale_changed)locale_load(input[3] == 8);
             k_work_cancel_delayable(&lighting_save_work);
             if (previous_default != state.active.default_layer) {
                 uint8_t previous = base_layer;
@@ -593,6 +715,7 @@ static void run(void *a, void *b, void *c) {
             }
         }
         if (input[3] == 10 && !output[5]) {
+            ks_nkro_action(0x7012,true);
             locked_layers = 0;
             base_layer = 0;
             lighting_enabled = true;
@@ -601,13 +724,20 @@ static void run(void *a, void *b, void *c) {
             memset(&renderer, 0, sizeof(renderer));
             zmk_keymap_layer_to(0);
         }
+        bool clear_pairings = input[3] == 10 && !output[5] && input[10] == 1;
+        uint32_t reset_generation = state.active.generation;
+        if(request.physical_reset)ks_lock(&state);
         k_mutex_unlock(&state_mutex);
+        if((input[3]==8||input[3]==10||input[3]==17)&&!output[5])ks_lighting_wake();
         // Name persistence and advertising may wait for Bluetooth callbacks.
         // Never hold the key/render lock while doing that work. Only this USB
         // thread handles name transactions; the next request waits until done.
+        bool reset_ok = input[3] == 10 && !output[5];
+        if (reset_ok) settings_delete("keebart/power");
         if (input[3] == 10 && !output[5] && !ksn_reset()) output[5] = 6;
+        if (reset_ok && clear_pairings && !ks_host_reset(reset_generation)) output[5] = 6;
         ksn_task();
-        if (k_sem_take(&tx_ready, K_MSEC(500)) == 0) {
+        if (!request.physical_reset && k_sem_take(&tx_ready, K_MSEC(500)) == 0) {
             if (hid_int_ep_write(hid, output, 32, NULL) != 0)
                 k_sem_give(&tx_ready);
         }

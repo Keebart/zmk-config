@@ -242,7 +242,7 @@ void ks_render(struct ks_renderer *r, const struct ks_config *c, unsigned layer,
         return;
     unsigned brightness = c->lighting[5] > 30 ? 30 : c->lighting[5];
     for (unsigned p = 0; p < KS_KEYS; p++) {
-        if (c->mode)
+        if (c->mode && !(((unsigned)c->animation_layers[0] | (unsigned)c->animation_layers[1] << 8) & (1u << layer)))
             for (unsigned ch = 0; ch < 3; ch++)
                 out[p][ch] = c->palette[(layer * KS_KEYS + p) * 3 + ch] * brightness / 255;
         else

@@ -12,3 +12,4 @@ bool ks_override_pending(void);
 void ks_override_cancel(void);
 bool ks_override_valid(const struct ks_override *);
 void ks_override_report(uint16_t,bool);
+bool ks_override_ready(void);
