@@ -5,7 +5,7 @@
 #ifdef KEEBART_STUDIO_PHYSICAL
 #include "physical/physical.h"
 #endif
-#define KEEBART_RELEASE_ID 2026112201u
+#define KEEBART_RELEASE_ID 2026112202u
 #define KEEBART_RELEASE_BYTES 12
 static inline void keebart_release(uint8_t out[12], uint16_t model, uint8_t role, uint8_t storage) {
     memcpy(out,"KSV1",4);

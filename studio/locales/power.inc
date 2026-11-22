@@ -6,7 +6,7 @@ uint8_t kspw_flags(const uint8_t *p){return p[KSL_LAYER_RULE_AT+15];}
 uint8_t kspw_dim(const uint8_t *p){return p[KSL_LAYER_RULE_AT+23];}
 uint32_t kspw_idle_ms(const uint8_t *p){uint8_t v[6];kspw_options(p,v);return kspw_policy_idle(v);}
 uint32_t kspw_sleep_ms(const uint8_t *p){uint8_t v[6];kspw_options(p,v);return kspw_policy_sleep(v);}
-bool kspw_display_off(const uint8_t *p){return kspw_flags(p)&1;}
+bool kspw_display_off(const uint8_t *p){return !(kspw_flags(p)&1);}
 uint8_t kspw_factor(const uint8_t *p){uint8_t v[6];kspw_options(p,v);return kspw_policy_factor(v);}
 bool kspw_valid(const uint8_t p[6]){return kspw_policy_valid(p);}
 static bool power_set(uint8_t *p,uint8_t flags,uint8_t dim){

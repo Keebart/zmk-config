@@ -7,14 +7,14 @@
 #include <zmk/event_manager.h>
 #include <zmk/events/activity_state_changed.h>
 #include <string.h>
-static atomic_t idle_ms=300000,sleep_ms=3600000,display_blank,light_factor=255;
+static atomic_t idle_ms=300000,sleep_ms=3600000,display_blank=1,light_factor=255;
 uint32_t ks_power_idle_ms(void){return atomic_get(&idle_ms);}
 uint32_t ks_power_sleep_ms(void){return atomic_get(&sleep_ms);}
 bool ks_power_display_blank(void){return atomic_get(&display_blank);}
 uint8_t ks_power_factor(void){return atomic_get(&light_factor);}
 static void apply(const uint8_t p[6]){
  atomic_set(&idle_ms,kspw_policy_idle(p));atomic_set(&sleep_ms,kspw_policy_sleep(p));
- atomic_set(&display_blank,p[3]&1);atomic_set(&light_factor,kspw_policy_factor(p));
+ atomic_set(&display_blank,!(p[3]&1));atomic_set(&light_factor,kspw_policy_factor(p));
 }
 #if IS_ENABLED(CONFIG_KEEBART_STUDIO)
 extern void ks_power_options(uint8_t out[6]);
