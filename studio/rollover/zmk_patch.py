@@ -99,6 +99,61 @@ def patch(kind, text):
             return -EINVAL;
         case KS_NKRO_REPORT_ID:
         case ZMK_HID_REPORT_ID_LEDS:''')
+        # CONFIG_ENABLE_HID_INT_OUT_EP applies globally to every legacy Zephyr
+        # HID interface, including HID_0. Always drain Interrupt OUT so LED
+        # output reports update indicators and re-arm the endpoint instead of
+        # leaving it NAK-stalled (which blocks macOS Caps Lock/language switches).
+        ops_old='''static const struct hid_ops ops = {
+#if IS_ENABLED(CONFIG_ZMK_USB_BOOT)
+    .protocol_change = set_proto_cb,
+#endif
+    .int_in_ready = in_ready_cb,
+    .get_report = get_report_cb,
+    .set_report = set_report_cb,
+};'''
+        ops_new='''#if IS_ENABLED(CONFIG_ENABLE_HID_INT_OUT_EP)
+static void out_ready_cb(const struct device *dev) {
+    uint8_t data[64];
+    uint32_t len = 0;
+    if (hid_int_ep_read(dev, data, sizeof(data), &len) != 0) {
+        return;
+    }
+#if IS_ENABLED(CONFIG_ZMK_HID_INDICATORS)
+    struct zmk_endpoint_instance endpoint = {
+        .transport = ZMK_TRANSPORT_USB,
+    };
+#if IS_ENABLED(CONFIG_ZMK_USB_BOOT)
+    if (hid_protocol == HID_PROTOCOL_BOOT) {
+        if (len == sizeof(struct zmk_hid_led_report_body)) {
+            struct zmk_hid_led_report_body body;
+            memcpy(&body, data, sizeof(body));
+            zmk_hid_indicators_process_report(&body, endpoint);
+        }
+        return;
+    }
+#endif
+    if (len == sizeof(struct zmk_hid_led_report) &&
+        (data[0] == ZMK_HID_REPORT_ID_LEDS || data[0] == KS_NKRO_REPORT_ID)) {
+        struct zmk_hid_led_report report;
+        memcpy(&report, data, sizeof(report));
+        zmk_hid_indicators_process_report(&report.body, endpoint);
+    }
+#endif
+}
+#endif
+
+static const struct hid_ops ops = {
+#if IS_ENABLED(CONFIG_ZMK_USB_BOOT)
+    .protocol_change = set_proto_cb,
+#endif
+    .int_in_ready = in_ready_cb,
+#if IS_ENABLED(CONFIG_ENABLE_HID_INT_OUT_EP)
+    .int_out_ready = out_ready_cb,
+#endif
+    .get_report = get_report_cb,
+    .set_report = set_report_cb,
+};'''
+        text=once(text,ops_old,ops_new)
         text=once(text,'    return zmk_usb_hid_send_report(report, len);','    bool awake=zmk_usb_get_status()!=USB_DC_SUSPEND;\n    int result=zmk_usb_hid_send_report(report,len);\n    if(awake)ks_nkro_sent(result);\n    return result;')
         return text
     if kind=='hog':

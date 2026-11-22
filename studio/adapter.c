@@ -195,6 +195,8 @@ static int observe(const zmk_event_t *event) {
         ks_lock(&state);
         ks_reset_key_cancel(&reset_key);
         k_msgq_purge(&requests);
+        if (as_zmk_usb_conn_state_changed(event)->conn_state != ZMK_USB_CONN_HID)
+            k_sem_give(&tx_ready);
     }
     k_mutex_unlock(&state_mutex);
     ks_lighting_wake();
