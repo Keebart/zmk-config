@@ -1,7 +1,7 @@
 #include "macro_vm.h"
 #include "locales/locale.h"
 #include <string.h>
-static bool key_valid(uint16_t key) { return (key <= 0x1fff && (key & 255) >= 4) || ksl_character(key) || (key>=0xc100&&key<0xc180); }
+static bool key_valid(uint16_t key) { return (key <= 0x1fff && (key & 255) >= 4) || ksl_character(key) || ksl_shortcut(key) || (key>=0xc100&&key<0xc180); }
 static uint16_t ascii_key(uint8_t c) {
     if (c >= 'a' && c <= 'z') return 4 + c - 'a';
     if (c >= 'A' && c <= 'Z') return 0x204 + c - 'A';

@@ -46,6 +46,7 @@ static void ex_unicode(struct ksl_runtime *r,const uint8_t *p,uint16_t code,int6
 static void ex_output(struct ksl_runtime *r,const uint8_t *p,uint16_t code,int64_t now,uint8_t mods,bool caps,const struct ksl_io *io){
     if(code>=KSE_UNICODE&&code<KSE_UNICODE+KSE_UNICODE_COUNT){ex_unicode(r,p,code,now,mods,io);return;}
     if(ksl_character(code)){ksl_emit_character(p,r->active,code,mods,caps,io);return;}
+    if(ksl_shortcut(code)){uint16_t resolved=ksl_shortcut_code(p,r->active,code);if(resolved){ex_action(r,resolved,true,io);tap_pause(p,resolved,io);ex_action(r,resolved,false,io);}return;}
     ex_action(r,code,true,io);tap_pause(p,code,io);ex_action(r,code,false,io);
 }
 static void ex_leader_end(struct ksl_runtime *r,const uint8_t *p,int64_t now,uint8_t mods,bool caps,const struct ksl_io *io){

@@ -17,9 +17,9 @@ static bool utf8(const uint8_t *p,size_t n){
         if(c<min||c>0x10ffff||(c>=0xd800&&c<=0xdfff)||(c>=0x80&&c<=0x9f))return false;
     }return true;
 }
-bool ksl_supported(uint16_t code){return kse_code(code)||ksl_character(code)||(code>=KSL_SELECT&&code<=KSL_PREVIOUS)||(code>=KSL_COMPOUND&&code<KSL_COMPOUND+KSL_ACTIONS);}
+bool ksl_supported(uint16_t code){return kse_code(code)||ksl_character(code)||ksl_shortcut(code)||(code>=KSL_SELECT&&code<=KSL_PREVIOUS)||(code>=KSL_COMPOUND&&code<KSL_COMPOUND+KSL_ACTIONS);}
 bool ksl_compound_key(uint16_t c){
-    return kse_code(c)||ksl_character(c)||c<=0x1fff||(c>=0x5000&&c<=0x52ff)||(c>=0x7700&&c<=0x771f)||
+    return kse_code(c)||ksl_character(c)||ksl_shortcut(c)||c<=0x1fff||(c>=0x5000&&c<=0x52ff)||(c>=0x7700&&c<=0x771f)||
         (c>=0x7f40&&c<=0x7f5f)||(c>=0x7800&&c<=0x784c)||(c>=0x7c00&&c<=0x7c01)||(c>=0x7c5d&&c<=0x7c5f)||
         c==0x7c73||(c>=0x7c77&&c<=0x7c7a)||c==0x7c7b||(c>=KSL_SELECT&&c<=KSL_PREVIOUS)||
         (c>=0x7e00&&c<=0x7e04)||(c>=0x7e10&&c<=0x7e13)||(c>=0x7e20&&c<=0x7e22);
@@ -257,6 +257,21 @@ static bool recipe(unsigned layout,uint16_t code,struct ksl_recipe *out){
         }
     }
     return false;
+}
+uint16_t ksl_shortcut_code(const uint8_t *p,unsigned computer,uint16_t code){
+    if(!ksl_shortcut(code))return 0;
+    unsigned layout=computer<p[4]?rd16(p+8+computer*36):KSL_STOCK_LAYOUT;
+    if(layout>=KSL_LAYOUT_COUNT)layout=KSL_STOCK_LAYOUT;
+    unsigned os=ksl_layout_os[layout]&3;
+    static const uint8_t letters[8]={'z','z','x','c','v','a','f','s'};
+    static const uint8_t fallback[8]={29,29,27,6,25,4,9,22};
+    unsigned idx=code-KSL_SHORTCUT_BASE;
+    uint8_t letter=letters[idx],key=fallback[idx];
+    uint8_t mods=os==2?0x08:0x01;
+    if(code==KSL_REDO){if(os==1){letter='y';key=28;}else mods|=0x02;}
+    struct ksl_recipe r;
+    if(recipe(layout,0x8000u|letter,&r)&&!(r.flags&1)&&!r.mods&&r.key>=4&&r.key<=0xa4)key=r.key;
+    return ((uint16_t)mods<<8)|key;
 }
 static uint16_t unicode_upper(uint16_t code){
     uint16_t c=code&0x7fff;

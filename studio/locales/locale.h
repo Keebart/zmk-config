@@ -19,6 +19,16 @@
 #define KSL_SELECT 0x7d80
 #define KSL_NEXT (KSL_SELECT+KSL_COMPUTERS)
 #define KSL_PREVIOUS (KSL_NEXT+1)
+#define KSL_SHORTCUT_BASE 0x7f88
+#define KSL_UNDO 0x7f88
+#define KSL_REDO 0x7f89
+#define KSL_CUT 0x7f8a
+#define KSL_COPY 0x7f8b
+#define KSL_PASTE 0x7f8c
+#define KSL_SELECT_ALL 0x7f8d
+#define KSL_FIND 0x7f8e
+#define KSL_SAVE 0x7f8f
+#define KSL_SHORTCUT_END 0x7f8f
 #define KSL_COMPOUND 0xc000
 struct ksl_stroke { uint8_t key, mods; };
 struct ksl_output { struct ksl_stroke strokes[2]; uint32_t unicode; uint8_t count; };
@@ -31,6 +41,8 @@ void ksl_default(uint8_t *);
 void ksl_stock(uint8_t *);
 uint16_t ksl_stock_code(uint16_t);
 static inline bool ksl_character(uint16_t code){return (code>=0x8020&&code<=0xafff&&!(code>=0x807f&&code<=0x809f))||(code>=0xb001&&code<=0xb01f)||(code>=0xb020&&code<=0xbfff&&!(code>=0xb07f&&code<=0xb09f));}
+static inline bool ksl_shortcut(uint16_t code){return code>=KSL_SHORTCUT_BASE&&code<=KSL_SHORTCUT_END;}
+uint16_t ksl_shortcut_code(const uint8_t *,unsigned,uint16_t);
 bool ksl_supported(uint16_t);
 bool ksl_compound_key(uint16_t);
 bool ksl_resolve(const uint8_t *,unsigned,uint16_t,uint8_t,bool,struct ksl_output *);

@@ -25,7 +25,7 @@ struct ksl_io {
 };
 struct ksl_held {
     unsigned position;
-    uint16_t code, hold, tap;
+    uint16_t code, hold, tap, output;
     uint8_t flags;
     int64_t due, started;
     bool used, resolved, forwarded, tap_active, interrupted;
