@@ -8,6 +8,8 @@
 #include <lvgl.h>
 #include <zmk/endpoints.h>
 
+#define SHARP_MIP_PROFILE_COUNT 5
+
 #define CANVAS_SIZE 68
 
 #define LVGL_BACKGROUND                                                                            \
@@ -23,6 +25,8 @@ struct status_state {
     int active_profile_index;
     bool active_profile_connected;
     bool active_profile_bonded;
+    bool profiles_connected[SHARP_MIP_PROFILE_COUNT];
+    bool profiles_bonded[SHARP_MIP_PROFILE_COUNT];
     uint8_t layer_index;
     const char *layer_label;
 #if IS_ENABLED(CONFIG_KEEBART_STUDIO)

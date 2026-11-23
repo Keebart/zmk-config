@@ -25,7 +25,7 @@ uint32_t ks_crc(const void *data, size_t n) {
     return ~c;
 }
 bool ks_supported(uint16_t c) {
-    if(kse_code(c) || c == 0x7c03) return true; // kse_code(c) || shared Studio actions
+    if(kse_code(c) || c == 0x7c03 || c == 0x7c73 || c == 0x7780) return true; // kse_code(c) || shared Studio actions
     return (c>=KSL_BINDING&&c<KSL_BINDING+KSL_BINDINGS) || ksl_supported(c) || (c >= KD_BASE && c < KD_BASE + KD_COUNT) || (c >= 0x7700 && c < 0x7700 + KM_COUNT) || c <= 0x51ff || (c >= 0x5240 && c <= 0x524f) || (c >= 0x52c0 && c <= 0x52cf) ||
            (c >= 0x52e0 && c <= 0x52ef) || (c >= 0x7c77 && c <= 0x7c7a) || c == 0x7c7b ||
            (c >= 0x7c5d && c <= 0x7c5f) || (c >= 0x7f40 && c <= 0x7f5f) || (c >= 0x7840 && c <= 0x7841) || (c >= 0x7820 && c <= 0x782a) || (c >= 0x5200 && c <= 0x520f) ||

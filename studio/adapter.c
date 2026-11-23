@@ -32,6 +32,7 @@ void ksn_handle(const uint8_t[32],uint8_t[32],bool);
 #include <zephyr/usb/usb_device.h>
 #include <zephyr/usb/class/usb_hid.h>
 #include <zmk/behavior.h>
+#include <zmk/endpoints.h>
 #include <zmk/events/endpoint_changed.h>
 #include <zmk/events/ble_active_profile_changed.h>
 #include <zmk/events/activity_state_changed.h>
@@ -450,7 +451,8 @@ static void dance_tick(struct k_work *work) {
 static int execute(uint16_t c, struct zmk_behavior_binding_event e, bool down) {
     c=ksl_binding(state.active.locales,locale_runtime.active,c);
     if(c==KS_RESET_KEY)return 0;
-    if(c==0x7c73){ks_word_action(c,down);return 0;}
+    if(c==0x7c73){bool macro=e.position>=KS_KEYS+KS_ENCODERS+KS_COMBOS+512;if(macro||ks_locale_override_process(c,e.layer<16?e.layer:0,down))ks_word_action(c,down);return 0;}
+    if(c==0x7780){if(down)zmk_endpoints_select_transport(ZMK_TRANSPORT_USB);return 0;}
     if(locale_event(c,e,down))return 0;
     if(repeat_event(c,e,down))return 0;
     if(e.position<KS_KEYS+KS_ENCODERS+KS_COMBOS+256) {
