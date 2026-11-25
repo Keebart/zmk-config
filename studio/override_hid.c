@@ -37,6 +37,24 @@ static void shortcut(uint8_t m){normal_weak|=m;update_mods();}
 extern void ks_locale_override(uint16_t,bool);
 static const struct ks_override_io io={.mods=zmk_hid_get_explicit_mods,.press=press,.release=release,.send=send,.weak=weak,.mask=mask,.shortcut=shortcut,.clock=clock_ms,.wait=wait_time,.character=ks_locale_override};
 void ks_override_prepare(void){if(!initialized){initialized=true;ks_override_init(ks_override_entries(),&io);}}
+#if IS_ENABLED(CONFIG_ZMK_DISPLAY)
+#include "display_event.h"
+extern bool is_caps_word_on(void);
+static uint8_t display_last_mods;
+static bool display_last_caps_word;
+static void display_state_refresh(struct k_work *work){(void)work;raise_ks_display_key_changed((struct ks_display_key_changed){.sequence=0});}
+static K_WORK_DEFINE(display_state_work,display_state_refresh);
+static void ks_display_sync_state(void){
+    uint8_t mods=zmk_hid_get_explicit_mods();
+    bool cw=is_caps_word_on();
+    if(mods!=display_last_mods||cw!=display_last_caps_word){
+        display_last_mods=mods;display_last_caps_word=cw;
+        k_work_submit(&display_state_work);
+    }
+}
+#else
+static inline void ks_display_sync_state(void){}
+#endif
 static void tick(struct k_work *work);
 K_WORK_DELAYABLE_DEFINE(override_work,tick);
 void ks_word_schedule(void){
@@ -45,21 +63,23 @@ void ks_word_schedule(void){
 }
 static void tick(struct k_work *work){
     k_mutex_lock(&state_mutex,K_FOREVER);ks_override_tick();ks_word_tick();ks_word_schedule();k_mutex_unlock(&state_mutex);
+    ks_display_sync_state();
 }
 void ks_override_lifecycle_cancel(void){
     ks_word_cancel();
     if(initialized){ks_override_cancel();k_work_cancel_delayable(&override_work);}
+    ks_display_sync_state();
 }
-void add_mods(uint8_t m){zmk_hid_register_mods(m);}
-void del_mods(uint8_t m){zmk_hid_unregister_mods(m);}
-void clear_mods(void){zmk_hid_unregister_mods(255);}
+void add_mods(uint8_t m){zmk_hid_register_mods(m);ks_display_sync_state();}
+void del_mods(uint8_t m){zmk_hid_unregister_mods(m);ks_display_sync_state();}
+void clear_mods(void){zmk_hid_unregister_mods(255);ks_display_sync_state();}
 uint8_t get_weak_mods(void){return word_weak;}
 void add_weak_mods(uint8_t m){word_weak|=m;update_mods();}
 void del_weak_mods(uint8_t m){word_weak&=~m;update_mods();}
 void clear_weak_mods(void){word_weak=0;update_mods();}
 void unregister_weak_mods(uint8_t m){word_weak&=~m;send();}
 void ks_word_begin(void){word_weak=0;update_mods();}
-void ks_word_action(uint16_t code,bool down){ks_override_prepare();ks_word_process(code,down);ks_word_schedule();}
+void ks_word_action(uint16_t code,bool down){ks_override_prepare();ks_word_process(code,down);ks_word_schedule();ks_display_sync_state();}
 // Observe the originating layer of resolved hold/tap, sticky and physical actions.
 // Wrapping only this Studio build avoids changing upstream ZMK behavior sources.
 extern int __real_zmk_behavior_invoke_binding(const struct zmk_behavior_binding *,struct zmk_behavior_binding_event,bool);
@@ -93,7 +113,7 @@ static int key_event(const zmk_event_t *event){
     k_mutex_lock(&state_mutex,K_FOREVER);ks_override_prepare();
     uint16_t code=qmk_code(e);
     extern bool ks_pointer_report(uint16_t,bool);
-    if(e->usage_page==HID_USAGE_KEY && ks_pointer_report(code,e->state)){k_mutex_unlock(&state_mutex);return ZMK_EV_EVENT_BUBBLE;}
+    if(e->usage_page==HID_USAGE_KEY && ks_pointer_report(code,e->state)){k_mutex_unlock(&state_mutex);ks_display_sync_state();return ZMK_EV_EVENT_BUBBLE;}
     extern void ks_repeat_note(uint16_t,uint8_t);
     if(e->state&&code!=0xffff)ks_repeat_note(code,zmk_hid_get_explicit_mods()|e->implicit_modifiers);
     bool pass=true;
@@ -118,10 +138,11 @@ static int key_event(const zmk_event_t *event){
         }
         send();
     }
-    k_mutex_unlock(&state_mutex);return ZMK_EV_EVENT_BUBBLE;
+    k_mutex_unlock(&state_mutex);ks_display_sync_state();return ZMK_EV_EVENT_BUBBLE;
 }
 void ks_override_report(uint16_t code,bool down){
     k_mutex_lock(&state_mutex,K_FOREVER);ks_override_prepare();ks_override_process(code,source_layer,down);ks_word_schedule();k_mutex_unlock(&state_mutex);
+    ks_display_sync_state();
 }
 ZMK_LISTENER(keebart_override_hid,key_event);
 ZMK_SUBSCRIPTION(keebart_override_hid,zmk_keycode_state_changed);
@@ -135,7 +156,7 @@ void ks_override_locale_tap(uint8_t key,uint8_t mods){
 }
 
 uint8_t ks_locale_mods(void){return ((zmk_hid_get_explicit_mods()|normal_weak|repeat_weak|word_weak)&~suppressed)|override_weak;}
-bool ks_locale_override_process(uint16_t code,uint8_t layer,bool down){ks_override_prepare();bool pass=ks_override_process(code,layer,down);ks_word_schedule();return pass;}
+bool ks_locale_override_process(uint16_t code,uint8_t layer,bool down){ks_override_prepare();bool pass=ks_override_process(code,layer,down);ks_word_schedule();ks_display_sync_state();return pass;}
 
 void ks_repeat_weak(uint8_t mods){repeat_weak=mods;send();}
 

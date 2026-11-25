@@ -11,7 +11,7 @@ if(CONFIG_KEEBART_STUDIO OR CONFIG_KEEBART_STUDIO_PERIPHERAL)
   add_subdirectory(compat)
   zephyr_compile_definitions(KEEBART_STUDIO_PHYSICAL=1)
   zephyr_ld_options(-Wl,--wrap=z_fatal_error)
-  target_sources(app PRIVATE ${CMAKE_CURRENT_LIST_DIR}/physical/physical.c ${CMAKE_CURRENT_LIST_DIR}/physical/compact.c ${CMAKE_CURRENT_LIST_DIR}/physical_port.c ${CMAKE_CURRENT_LIST_DIR}/power_port.c ${CMAKE_CURRENT_LIST_DIR}/studio_diagnostics.c ${CMAKE_CURRENT_LIST_DIR}/storage_guard.c ${CMAKE_CURRENT_LIST_DIR}/frames.c ${CMAKE_CURRENT_LIST_DIR}/lighting_io.c ${CMAKE_CURRENT_LIST_DIR}/underglow_compat.c)
+  target_sources(app PRIVATE ${CMAKE_CURRENT_LIST_DIR}/physical/physical.c ${CMAKE_CURRENT_LIST_DIR}/physical/compact.c ${CMAKE_CURRENT_LIST_DIR}/physical_port.c ${CMAKE_CURRENT_LIST_DIR}/power_port.c ${CMAKE_CURRENT_LIST_DIR}/bootmagic.c ${CMAKE_CURRENT_LIST_DIR}/studio_diagnostics.c ${CMAKE_CURRENT_LIST_DIR}/storage_guard.c ${CMAKE_CURRENT_LIST_DIR}/frames.c ${CMAKE_CURRENT_LIST_DIR}/lighting_io.c ${CMAKE_CURRENT_LIST_DIR}/underglow_compat.c)
   # Replace only this build's stock renderer. Never modify the upstream source or other targets.
   function(keebart_renderer)
     get_target_property(sources app SOURCES)

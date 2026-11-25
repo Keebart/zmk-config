@@ -14,12 +14,14 @@
 struct zmk_widget_status {
     sys_snode_t node;
     lv_obj_t *obj;
+#if !IS_ENABLED(CONFIG_KEEBART_STUDIO) && !IS_ENABLED(CONFIG_KEEBART_STUDIO_PERIPHERAL)
     lv_color_t cbuf[CANVAS_SIZE * CANVAS_SIZE];
     lv_color_t cbuf2[CANVAS_SIZE * CANVAS_SIZE];
     lv_color_t cbuf3[CANVAS_SIZE * CANVAS_SIZE];
     struct status_state state;
 #if IS_ENABLED(CONFIG_KEEBART_STUDIO)
     char studio_layer_label[129];
+#endif
 #endif
 };
 
