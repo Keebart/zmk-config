@@ -10,6 +10,7 @@ uint8_t kspw_dim(const uint8_t *);
 uint32_t kspw_idle_ms(const uint8_t *);
 uint32_t kspw_sleep_ms(const uint8_t *);
 bool kspw_display_off(const uint8_t *);
+bool kspw_display_dark(const uint8_t *);
 uint8_t kspw_factor(const uint8_t *);
 bool kspw_valid(const uint8_t[6]);
 // Physical lighting actions never modify the layer palette or animation recipe.

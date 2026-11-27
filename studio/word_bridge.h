@@ -8,3 +8,4 @@ void ks_word_tick(void);
 int64_t ks_word_deadline(void);
 void ks_word_cancel(void);
 bool ks_typing_character(uint16_t code, bool down, bool resolved);
+bool ks_word_active(void);

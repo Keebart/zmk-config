@@ -55,4 +55,57 @@ replace('    int err = bt_gatt_subscribe(conn, params);', '    int err = bt_gatt
 replace('    return subscribed ? BT_GATT_ITER_STOP : BT_GATT_ITER_CONTINUE;',
         '    if (subscribed) atomic_set_bit(&slot->keebart_ready, 0);\n'
         '    return subscribed ? BT_GATT_ITER_STOP : BT_GATT_ITER_CONTINUE;')
+
+# Prevent permanent scan deadlock on transient HCI errors or stop_scanning() failures.
+replace(
+    'static int stop_scanning(void) {\n'
+    '    LOG_DBG("Stopping peripheral scanning");\n'
+    '    is_scanning = false;',
+    'static void ks_scan_retry_cb(struct k_work *work) {\n'
+    '    ARG_UNUSED(work);\n'
+    '    start_scanning();\n'
+    '}\n'
+    '\n'
+    'static K_WORK_DELAYABLE_DEFINE(ks_scan_retry_work, ks_scan_retry_cb);\n'
+    '\n'
+    'static int stop_scanning(void) {\n'
+    '    LOG_DBG("Stopping peripheral scanning");\n'
+    '    k_work_cancel_delayable(&ks_scan_retry_work);\n'
+    '    is_scanning = false;',
+)
+replace(
+    '    // Stop scanning so we can connect to the peripheral device.\n'
+    '    int err = stop_scanning();\n'
+    '    if (err < 0) {\n'
+    '        return false;\n'
+    '    }',
+    '    // Stop scanning so we can connect to the peripheral device.\n'
+    '    int err = stop_scanning();\n'
+    '    if (err < 0) {\n'
+    '        release_peripheral_slot(slot_idx);\n'
+    '        start_scanning();\n'
+    '        return false;\n'
+    '    }',
+)
+replace(
+    '    // Start scanning otherwise.\n'
+    '    is_scanning = true;\n'
+    '    int err = bt_le_scan_start(BT_LE_SCAN_PASSIVE, split_central_device_found);\n'
+    '    if (err < 0) {\n'
+    '        LOG_ERR("Scanning failed to start (err %d)", err);\n'
+    '        return err;\n'
+    '    }',
+    '    // Start scanning otherwise.\n'
+    '    k_work_cancel_delayable(&ks_scan_retry_work);\n'
+    '    is_scanning = true;\n'
+    '    int err = bt_le_scan_start(BT_LE_SCAN_PASSIVE, split_central_device_found);\n'
+    '    if (err < 0) {\n'
+    '        LOG_ERR("Scanning failed to start (err %d)", err);\n'
+    '        if (err != -EALREADY) {\n'
+    '            is_scanning = false;\n'
+    '            k_work_reschedule(&ks_scan_retry_work, K_MSEC(500));\n'
+    '        }\n'
+    '        return err;\n'
+    '    }',
+)
 pathlib.Path(sys.argv[2]).write_text(source)

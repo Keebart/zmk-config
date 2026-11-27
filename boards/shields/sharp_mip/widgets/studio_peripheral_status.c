@@ -22,6 +22,8 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include "mip_canvas.h"
 #include "peripheral_status.h"
 
+extern bool ks_power_display_dark(void);
+
 #define KSM_PHYS_W 160
 #define KSM_PHYS_H 68
 #define KSM_SPLASH_DURATION_MS 2500u
@@ -31,6 +33,7 @@ static lv_color_t studio_cbuf[KSM_PHYS_W * KSM_PHYS_H];
 static uint8_t studio_fb[KSM_FB_BYTES];
 static uint8_t studio_prev_fb[KSM_FB_BYTES];
 static bool studio_fb_valid;
+static bool studio_prev_dark;
 static bool studio_splash_active;
 static ksm_state_t studio_state;
 static lv_obj_t *studio_canvas;
@@ -50,14 +53,22 @@ static void studio_mip_flush(void) {
         ksm_preset_render_right(studio_fb, &studio_state);
     }
 
-    if (studio_fb_valid && memcmp(studio_fb, studio_prev_fb, sizeof(studio_fb)) == 0) {
+    const bool dark = ks_power_display_dark();
+    if (studio_fb_valid && dark == studio_prev_dark &&
+        memcmp(studio_fb, studio_prev_fb, sizeof(studio_fb)) == 0) {
         return;
     }
     memcpy(studio_prev_fb, studio_fb, sizeof(studio_fb));
     studio_fb_valid = true;
+    studio_prev_dark = dark;
 
-    const lv_color_t fg = LVGL_FOREGROUND;
-    const lv_color_t bg = LVGL_BACKGROUND;
+    /* Sharp LS011B7DH03 via Zephyr PIXEL_FORMAT_MONO01:
+     * lv_color_black() (0) drives reflective silver; lv_color_white() (1) drives dark ink.
+     * Light mode (default, dark == false): dark ink foreground on reflective silver background.
+     * Dark mode (dark == true): reflective silver foreground on dark matte background.
+     */
+    const lv_color_t fg = dark ? lv_color_black() : lv_color_white();
+    const lv_color_t bg = dark ? lv_color_white() : lv_color_black();
     for (int py = 0; py < (int)KSM_HEIGHT; py++) {
         for (int px = 0; px < (int)KSM_WIDTH; px++) {
             uint8_t on = ksm_get_px(studio_fb, px, py);
@@ -72,6 +83,19 @@ static void studio_mip_flush(void) {
         }
     }
     lv_obj_invalidate(studio_canvas);
+}
+
+static void studio_theme_work_fn(struct k_work *work) {
+    (void)work;
+    studio_mip_flush();
+}
+
+static K_WORK_DEFINE(studio_theme_work, studio_theme_work_fn);
+
+void ks_mip_theme_changed(void) {
+    if (zmk_display_is_initialized()) {
+        k_work_submit_to_queue(zmk_display_work_q(), &studio_theme_work);
+    }
 }
 
 static void studio_splash_end_fn(struct k_work *work) {
@@ -127,6 +151,7 @@ ZMK_SUBSCRIPTION(widget_peripheral_status, zmk_split_peripheral_status_changed);
 int zmk_widget_status_init(struct zmk_widget_status *widget, lv_obj_t *parent) {
     memset(&studio_state, 0, sizeof(studio_state));
     studio_fb_valid = false;
+    studio_prev_dark = false;
     studio_splash_active = true;
     studio_state.peripheral_battery = zmk_battery_state_of_charge();
 #if IS_ENABLED(CONFIG_USB_DEVICE_STACK)

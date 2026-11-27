@@ -7,11 +7,11 @@ struct kse_runtime {
     uint16_t leader_keys[5],locked[16];
     uint8_t leader_count,program_steps;
     uint8_t shifts[2];
-    uint16_t program_at,text_remaining;
+    uint16_t program_at,text_remaining,program_held;
     int64_t program_due;
     struct kse_edge edges[32];
     char text[32];uint8_t text_len;
-    bool program_active;
+    bool program_active,program_character;
     unsigned keyboard_lock_position;
     bool lock_key_down;
     bool emitting,leader,arm_lock,keyboard_lock,sentence,capitalize,terminal,both_shifts;

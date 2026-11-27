@@ -6,19 +6,22 @@
 #include <zmk/endpoints.h>
 #include <zmk/events/keycode_state_changed.h>
 extern void ks_override_locale_tap(uint8_t,uint8_t);
+extern bool ks_macro_emitting(void);
 static struct ksl_runtime locale_runtime;
 static unsigned locale_bypass;
 bool ks_locale_resolved_action(void){return locale_bypass!=0;}
 static bool locale_replaying;
+static uint8_t locale_layer;
+static unsigned locale_override_active;
 static void locale_replay(void *ctx,unsigned pos,uint16_t code,bool down,int64_t time){
-    (void)ctx;struct zmk_behavior_binding_event e={.position=pos,.timestamp=time,.layer=0,.source=ZMK_POSITION_STATE_CHANGE_SOURCE_LOCAL};
+    (void)ctx;struct zmk_behavior_binding_event e={.position=pos,.timestamp=time,.layer=locale_layer,.source=ZMK_POSITION_STATE_CHANGE_SOURCE_LOCAL};
     bool previous=locale_replaying;locale_replaying=true;execute(code,e,down);locale_replaying=previous;
 }
 static void locale_action(void *ctx,uint16_t code,bool down){
     if(code>=KSN_ON&&code<=KSN_TOGGLE){ks_nkro_action(code,down);return;}
     if(code==KSE_JIGGLER){pointer_key(code,down);return;}
     (void)ctx;
-    struct zmk_behavior_binding_event e={.position=KS_KEYS+KS_ENCODERS+KS_COMBOS+1024+code,.timestamp=k_uptime_get(),.layer=0,.source=ZMK_POSITION_STATE_CHANGE_SOURCE_LOCAL};
+    struct zmk_behavior_binding_event e={.position=KS_KEYS+KS_ENCODERS+KS_COMBOS+1024+code,.timestamp=k_uptime_get(),.layer=locale_runtime.active_layer,.source=ZMK_POSITION_STATE_CHANGE_SOURCE_LOCAL};
     locale_bypass++;execute(code,e,down);locale_bypass--;
 }
 static void locale_pause(void *ctx,uint16_t ms){(void)ctx;if(ms)k_msleep(ms);}
@@ -54,15 +57,21 @@ static uint16_t locale_lookup(void *ctx,unsigned pos,uint16_t code){
     unsigned mapped=locale_runtime.extended.swap?kse_swap_position(state.active.locales,pos):pos;
     for(int layer=KS_LAYERS-1;layer>=0;layer--)if(zmk_keymap_layer_active(layer)){
         uint16_t binding=ksl_binding(state.active.locales,locale_runtime.active,ks_binding(&state,layer,mapped));
-        if(binding!=1)return binding;
+        if(binding!=1){locale_layer=layer;return binding;}
     }
     return 0;
+}
+static uint8_t locale_get_layer(void *ctx,unsigned pos){(void)ctx;(void)pos;return locale_layer;}
+static bool locale_override(void *ctx,uint16_t code,uint8_t layer,bool down){
+    (void)ctx;
+    if(ks_macro_emitting()||locale_override_active)return true;
+    return ks_locale_override_process(code,layer,down);
 }
 static const struct ksl_io locale_io;
 static void locale_schedule(void);
 static bool locale_text(void *ctx,uint32_t c){(void)ctx;bool accepted=ksl_text(&locale_runtime,state.active.locales,c,k_uptime_get(),&locale_io);locale_schedule();return accepted;}
 static void locale_unicode(void *ctx,uint32_t c){(void)ctx;ksl_emit_unicode(&locale_runtime,state.active.locales,c,k_uptime_get(),&locale_io);locale_schedule();}
-static const struct ksl_io locale_io={.unicode=locale_unicode,.tap=locale_tap,.sequence=locale_sequence,.character=locale_character,.cancel_typing=locale_cancel_typing,.action=locale_action,.mods=locale_mods,.locks=locale_locks,.prepare=locale_prepare,.wait=locale_pause,.replay=locale_replay,.hand=locale_hand,.stroke=locale_stroke,.lookup=locale_lookup};
+static const struct ksl_io locale_io={.unicode=locale_unicode,.tap=locale_tap,.sequence=locale_sequence,.character=locale_character,.cancel_typing=locale_cancel_typing,.action=locale_action,.mods=locale_mods,.locks=locale_locks,.prepare=locale_prepare,.wait=locale_pause,.replay=locale_replay,.hand=locale_hand,.stroke=locale_stroke,.lookup=locale_lookup,.layer=locale_get_layer,.override=locale_override};
 uint16_t ks_locale_tap_delay(uint16_t code){return ksl_tap_delay(state.active.locales,ksl_binding(state.active.locales,locale_runtime.active,code));}
 unsigned ks_locale_computer(void){return locale_runtime.active;}
 bool ks_locale_character_press(uint16_t source,uint16_t code,uint8_t mods){return ksl_character_press(&locale_runtime,state.active.locales,source,code,mods,(host_locks&2)!=0,&locale_io);}
@@ -128,6 +137,7 @@ bool ks_display_last_key(char *out,size_t size){
 #else
 static void display_key_pressed(uint16_t code){(void)code;}
 #endif
+extern void ks_power_sync_display_dark(bool dark);
 static bool locale_initialized;
 static void locale_load(bool preserve_typing){
     unsigned active=locale_runtime.active;bool initialized=locale_initialized;
@@ -135,6 +145,7 @@ static void locale_load(bool preserve_typing){
     if(preserve_typing&&initialized)ksl_runtime_reload(&locale_runtime,state.active.locales);
     else ksl_runtime_init(&locale_runtime,state.active.locales);
     locale_initialized=true;
+    ks_power_sync_display_dark(kspw_display_dark(state.active.locales));
 #if IS_ENABLED(CONFIG_ZMK_DISPLAY)
     k_work_reschedule(&locale_display_work, K_NO_WAIT);
     if(display_has_key)k_work_reschedule(&display_key_work,K_MSEC(20));
@@ -150,9 +161,8 @@ static void locale_endpoint(void){
 static bool locale_event(uint16_t code,struct zmk_behavior_binding_event event,bool down){
     if(locale_replaying)return false;
     locale_runtime.guarded=state.pressed!=0;
+    locale_layer=event.layer<16?event.layer:0;
     if(locale_bypass&&!ksl_supported(code))return ksl_extended_event(&locale_runtime,state.active.locales,event.position,code,down,event.timestamp,locale_mods(NULL),(host_locks&2)!=0,&locale_io);
-    bool macro=event.position>=KS_KEYS+KS_ENCODERS+KS_COMBOS+512;
-    if(ksl_character(code)&&!macro&&!ks_locale_override_process(code,event.layer,down))return true;
     bool handled=ksl_event(&locale_runtime,state.active.locales,event.position,code,down,event.timestamp,zmk_hid_get_explicit_mods(),(host_locks&2)!=0,&locale_io);
     locale_schedule();return handled;
 }
@@ -172,8 +182,14 @@ static void locale_request(const uint8_t *in,uint8_t *out){
 }
 
 void ks_locale_override(uint16_t code,bool down){
-    if(!down)for(unsigned i=0;i<KSL_HELD;i++)if(locale_runtime.held[i].used&&locale_runtime.held[i].code==code)ksl_event(&locale_runtime,state.active.locales,locale_runtime.held[i].position,code,false,k_uptime_get(),locale_mods(NULL),(host_locks&2)!=0,&locale_io);
-    ksl_event(&locale_runtime,state.active.locales,0x20000U+code,code,down,k_uptime_get(),locale_mods(NULL),(host_locks&2)!=0,&locale_io);locale_schedule();
+    locale_override_active++;
+    if(!down)for(unsigned i=0;i<KSL_HELD;i++)if(locale_runtime.held[i].used&&locale_runtime.held[i].code==code&&locale_runtime.held[i].position<0x20000U){
+        locale_runtime.held[i].due=INT64_MAX;
+        if(ksl_character(code)&&locale_io.character)locale_io.character(locale_io.context,code,false,false);
+    }
+    ksl_event(&locale_runtime,state.active.locales,0x20000U+code,code,down,k_uptime_get(),locale_mods(NULL),(host_locks&2)!=0,&locale_io);
+    locale_override_active--;
+    locale_schedule();
 }
 
 #include "locales/os_port.inc"

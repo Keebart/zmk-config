@@ -5,6 +5,8 @@
 #include "core.h"
 extern void ks_lighting_wake(void);
 extern void ks_led_test_set(uint8_t);
+extern bool ks_word_active(void);
+#include "live_state/live_state.h"
 extern void kdg_zmk_handle(const uint8_t[32], uint8_t[32]);
 extern bool ks_host_reset(uint32_t);
 extern void ks_host_reset_status(const uint8_t[32], uint8_t[32]);
@@ -19,6 +21,7 @@ void ksn_handle(const uint8_t[32],uint8_t[32],bool);
 #include "runtime.h"
 #include <zmk/virtual_key_position.h>
 #include <zmk/keymap.h>
+#include <zmk/hid.h>
 #include <zmk/events/sensor_event.h>
 #include <zmk/events/layer_state_changed.h>
 #include <zmk/events/hid_indicators_changed.h>
@@ -236,7 +239,7 @@ static struct zmk_behavior_binding translate(uint16_t c) {
         b.behavior_dev = NAME(trans);
     else if (c < 0x100) {
     } else if (c < 0x2000)
-        b.param1 = key(c & 255) | ((uint32_t)mods(c) << 24);
+        b.param1 = (c & 255) ? (key(c & 255) | ((uint32_t)mods(c) << 24)) : mod_key(mods(c));
     else if (c < 0x4000) {
         b.behavior_dev = NAME(mt);
         b.param1 = mod_key(mods(c));
@@ -426,9 +429,13 @@ int ks_lighting_action(unsigned action, int value) {
     return 0;
 }
 bool ks_lighting_on(void) { return lighting_enabled; }
+static unsigned macro_emitting;
+bool ks_macro_emitting(void) { return macro_emitting != 0; }
 static void macro_emit(void *ctx, uint16_t code, bool down) {
     struct zmk_behavior_binding_event e = {.position = KS_KEYS + KS_ENCODERS + KS_COMBOS + 512 + code, .timestamp = k_uptime_get(), .layer = 0};
+    macro_emitting++;
     execute(code, e, down);
+    macro_emitting--;
 }
 static void macro_run(struct k_work *work) {
     k_mutex_lock(&state_mutex, K_FOREVER);
@@ -451,9 +458,9 @@ static void dance_tick(struct k_work *work) {
 static int execute(uint16_t c, struct zmk_behavior_binding_event e, bool down) {
     c=ksl_binding(state.active.locales,locale_runtime.active,c);
     if(c==KS_RESET_KEY)return 0;
-    if(c==0x7c73){bool macro=e.position>=KS_KEYS+KS_ENCODERS+KS_COMBOS+512;if(macro||ks_locale_override_process(c,e.layer<16?e.layer:0,down))ks_word_action(c,down);return 0;}
-    if(c==0x7780){if(down)zmk_endpoints_select_transport(ZMK_TRANSPORT_USB);return 0;}
     if(locale_event(c,e,down))return 0;
+    if(c==0x7c73){if(ks_macro_emitting()||ks_locale_override_process(c,e.layer<16?e.layer:0,down))ks_word_action(c,down);return 0;}
+    if(c==0x7780){if(down)zmk_endpoints_select_transport(ZMK_TRANSPORT_USB);return 0;}
     if(repeat_event(c,e,down))return 0;
     if(e.position<KS_KEYS+KS_ENCODERS+KS_COMBOS+256) {
         bool handled=kd_input(&dances,e.position,c,down,e.timestamp,state.active.dances,KD_COUNT,dance_emit,NULL);
@@ -643,6 +650,46 @@ static int init(void) {
     return usb_hid_init(hid);
 }
 SYS_INIT(init, APPLICATION, 51);
+static void live_state_request(const uint8_t *in, uint8_t *out) {
+    memset(out, 0, 32);
+    memcpy(out, in, 5);
+    if (in[0] != 'K' || in[1] != 'S' || in[2] != 3 || in[3] != 24) {
+        out[5] = 2;
+        return;
+    }
+    for (unsigned i = 5; i < 32; i++) {
+        if (in[i]) {
+            out[5] = 2;
+            return;
+        }
+    }
+    struct ksls_snapshot snap;
+    memset(&snap, 0, sizeof(snap));
+    uint16_t mask = 0;
+    for (unsigned i = 0; i < KS_LAYERS; i++) {
+        if (zmk_keymap_layer_active(i)) {
+            mask |= (uint16_t)(1u << i);
+        }
+    }
+    snap.active_layer = (uint8_t)zmk_keymap_highest_layer_active();
+    snap.default_layer = base_layer;
+    snap.layer_mask = mask;
+    snap.modifiers = (uint8_t)zmk_hid_get_explicit_mods();
+    if (host_locks & 0x02u) snap.flags |= KSLS_FLAG_CAPS_LOCK;
+    if (host_locks & 0x01u) snap.flags |= KSLS_FLAG_NUM_LOCK;
+    if (host_locks & 0x04u) snap.flags |= KSLS_FLAG_SCROLL_LOCK;
+    if (ks_word_active()) snap.flags |= KSLS_FLAG_CAPS_WORD;
+    snap.computer = (uint8_t)ks_locale_computer();
+    bool unlocked = state.unlocked && !state.unlocking;
+    if (unlocked) {
+        snap.matrix_len = (uint8_t)((KS_KEYS + 7u) / 8u);
+        for (unsigned i = 0; i < snap.matrix_len; i++) {
+            snap.matrix[i] = (uint8_t)(state.pressed >> (8u * i));
+        }
+    }
+    out[5] = 0;
+    ksls_pack(out + 6, &snap, unlocked, true);
+}
 static void led_test_request(const uint8_t *in, uint8_t *out) {
     memset(out, 0, 32);
     memcpy(out, in, 5);
@@ -705,6 +752,7 @@ static void run(void *a, void *b, void *c) {
             else if(input[3]==21)kdg_zmk_handle(input,output);
             else if(input[3]==22)ks_host_reset_status(input,output);
             else if(input[3]==23)led_test_request(input,output);
+            else if(input[3]==24)live_state_request(input,output);
             else ks_handle(&state, input, sizeof(input), output, k_uptime_get(), persist, ks_stock);
         }
         if ((input[3] == 8 || input[3] == 10) && !output[5]) {

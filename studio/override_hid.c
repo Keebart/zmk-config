@@ -82,12 +82,13 @@ void ks_word_begin(void){word_weak=0;update_mods();}
 void ks_word_action(uint16_t code,bool down){ks_override_prepare();ks_word_process(code,down);ks_word_schedule();ks_display_sync_state();}
 // Observe the originating layer of resolved hold/tap, sticky and physical actions.
 // Wrapping only this Studio build avoids changing upstream ZMK behavior sources.
+extern bool ks_macro_emitting(void);
 extern int __real_zmk_behavior_invoke_binding(const struct zmk_behavior_binding *,struct zmk_behavior_binding_event,bool);
 int __wrap_zmk_behavior_invoke_binding(const struct zmk_behavior_binding *binding,struct zmk_behavior_binding_event event,bool down){
     k_mutex_lock(&state_mutex,K_FOREVER);
     uint8_t previous=source_layer;source_layer=event.layer<16?event.layer:0;
     // QMK macro bytecode injects reports directly, outside process_key_override.
-    bool macro=event.position>=KS_KEYS+KS_ENCODERS+KS_COMBOS+512 && event.position<KS_KEYS+KS_ENCODERS+KS_COMBOS+768;
+    bool macro=ks_macro_emitting();
     if(macro)bypass++;
     int result=__real_zmk_behavior_invoke_binding(binding,event,down);
     if(macro)bypass--;

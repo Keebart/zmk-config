@@ -2,7 +2,6 @@
 static uint16_t ex16(const uint8_t *p){return p[0]|(uint16_t)p[1]<<8;}
 static uint32_t ex32(const uint8_t *p){return ex16(p)|(uint32_t)ex16(p+2)<<16;}
 static void ex_action(struct ksl_runtime *r,uint16_t c,bool down,const struct ksl_io *io){bool prior=r->extended.emitting;r->extended.emitting=true;io->action(io->context,c,down);r->extended.emitting=prior;}
-static void ex_output(struct ksl_runtime *r,const uint8_t *p,uint16_t code,int64_t now,uint8_t mods,bool caps,const struct ksl_io *io);
 static void ex_unicode_add(struct kse_runtime *e,uint8_t key,uint8_t mods){if(e->unicode_count<20)e->unicode[e->unicode_count++]=(struct ksl_stroke){key,mods};}
 static void ex_text(struct ksl_runtime *r,const uint8_t *p,char c,uint8_t mods){
     struct ksl_output out;
@@ -43,31 +42,96 @@ static void ex_unicode(struct ksl_runtime *r,const uint8_t *p,uint16_t code,int6
     const uint8_t *u=v+32+slot*8;uint32_t c=ex32(u),shift=ex32(u+4);if((mods&0x22)&&shift)c=shift;
     ex_unicode_value(r,p,c,r->extended.unicode_mode[r->active],now,io);
 }
-static void ex_output(struct ksl_runtime *r,const uint8_t *p,uint16_t code,int64_t now,uint8_t mods,bool caps,const struct ksl_io *io){
+static uint16_t ex_hold_ms(const uint8_t *p,uint16_t code){
+    uint16_t delay=ksl_tap_delay(p,code);
+    return delay>10?delay:10;
+}
+static void ex_program_release(struct ksl_runtime *r,const struct ksl_io *io){
+    struct kse_runtime *e=&r->extended;
+    if(!e->program_held)return;
+    uint16_t code=e->program_held;bool ch=e->program_character;
+    e->program_held=0;e->program_character=false;
+    if(ch)ksl_character_release(r,code,io);
+    else ex_action(r,code,false,io);
+}
+// Pace leader outputs with the same non-blocking press/release cadence as macros.
+static void ex_program_press(struct ksl_runtime *r,const uint8_t *p,uint16_t code,int64_t now,uint8_t mods,bool caps,const struct ksl_io *io){
+    struct kse_runtime *e=&r->extended;
     if(code>=KSE_UNICODE&&code<KSE_UNICODE+KSE_UNICODE_COUNT){ex_unicode(r,p,code,now,mods,io);return;}
-    if(ksl_character(code)){ksl_emit_character(p,r->active,code,mods,caps,io);return;}
-    if(ksl_shortcut(code)){uint16_t resolved=ksl_shortcut_code(p,r->active,code);if(resolved){ex_action(r,resolved,true,io);tap_pause(p,resolved,io);ex_action(r,resolved,false,io);}return;}
-    ex_action(r,code,true,io);tap_pause(p,code,io);ex_action(r,code,false,io);
+    if(ksl_character(code)){
+        if(io->stroke){
+            if(ksl_character_press(r,p,code,code,mods,caps,io)){
+                e->program_held=code;e->program_character=true;e->program_due=now+ex_hold_ms(p,code);
+            }
+        } else {
+            ksl_emit_character(p,r->active,code,mods,caps,io);
+        }
+        return;
+    }
+    if(ksl_shortcut(code)){
+        code=ksl_shortcut_code(p,r->active,code);
+        if(!code)return;
+    }
+    ex_action(r,code,true,io);
+    e->program_held=code;e->program_character=false;e->program_due=now+ex_hold_ms(p,code);
+}
+static uint16_t ex_leader_canonical(const uint8_t *p,unsigned active,uint16_t c){
+    c=kse_leader_tap(p,c);
+    if(ksl_character(c)){
+        struct ksl_output out;
+        if(ksl_resolve(p,active,c,0,false,&out)&&!out.unicode&&out.count==1){
+            uint8_t m=out.strokes[0].mods;
+            if(!m)return out.strokes[0].key;
+            if(m==2||m==32)return 0x0200u|out.strokes[0].key;
+        }
+    }
+    return c;
 }
 static void ex_leader_end(struct ksl_runtime *r,const uint8_t *p,int64_t now,uint8_t mods,bool caps,const struct ksl_io *io){
-    struct kse_runtime *e=&r->extended;const uint8_t *v=kse_options(p),*l=v+32+v[2]*8; e->leader=false;
-    for(unsigned i=0;i<v[3];i++,l+=14){if(l[0]!=e->leader_count)continue;bool same=true;for(unsigned j=0;j<l[0];j++)same&=((v[1]&8)?ex16(l+2+j*2):kse_leader_tap(p,ex16(l+2+j*2)))==e->leader_keys[j];if(same){
-        if(l[1]){e->program_active=true;e->program_at=kse_program(v,i);e->program_steps=l[1];e->text_remaining=0;e->program_due=now;}
-        else ex_output(r,p,ex16(l+12),now,mods,caps,io);
-        break;
-    }}
+    struct kse_runtime *e=&r->extended;const uint8_t *v=kse_options(p);e->leader=false;
+    bool strict=(v[1]&8)!=0;
+    for(unsigned pass=0;pass<(strict?1u:2u);pass++){
+        const uint8_t *l=v+32+v[2]*8;
+        for(unsigned i=0;i<v[3];i++,l+=14){
+            if(l[0]!=e->leader_count)continue;
+            bool same=true;
+            for(unsigned j=0;j<l[0];j++){
+                uint16_t expected=ex16(l+2+j*2),actual=e->leader_keys[j];
+                if(strict)same&=expected==actual;
+                else if(!pass)same&=kse_leader_tap(p,expected)==actual;
+                else same&=ex_leader_canonical(p,r->active,expected)==ex_leader_canonical(p,r->active,actual);
+            }
+            if(same){
+                ex_program_release(r,io);
+                if(l[1]){e->program_active=true;e->program_at=kse_program(v,i);e->program_steps=l[1];e->text_remaining=0;e->program_due=now;}
+                else {
+                    e->program_active=true;e->program_steps=0;e->text_remaining=0;e->program_due=now;
+                    ex_program_press(r,p,ex16(l+12),now,mods,caps,io);
+                    if(!e->program_held)e->program_active=false;
+                }
+                e->leader_count=0;
+                return;
+            }
+        }
+    }
     e->leader_count=0;
 }
-/* One output per tick; delays never block input, split transport or lighting.
+/* One edge per tick; delays never block input, split transport or lighting.
  * No macro slot, macro buffer, recursion, or persistent held keys are involved. */
 static void ex_program_tick(struct ksl_runtime *r,const uint8_t *p,int64_t now,const struct ksl_io *io){
     struct kse_runtime *e=&r->extended;const uint8_t *v=kse_options(p);
     if(e->unicode_count||now<e->program_due||!e->program_active)return;
+    if(e->program_held){
+        ex_program_release(r,io);
+        if(!e->program_steps&&!e->text_remaining){e->program_active=false;return;}
+        e->program_due=now+10;
+        return;
+    }
     if(!e->program_steps&&!e->text_remaining){e->program_active=false;return;}
     e->program_due=now+10;
     if(!e->text_remaining){
         unsigned tag=v[e->program_at],value=ex16(v+e->program_at+1);e->program_at+=3;e->program_steps--;
-        if(tag==1){ex_output(r,p,value,now,0,false,io);return;}
+        if(tag==1){ex_program_press(r,p,value,now,0,false,io);return;}
         if(tag==2){e->program_due=now+value;return;}
         e->text_remaining=value;
         if(!value)return;
@@ -75,10 +139,10 @@ static void ex_program_tick(struct ksl_runtime *r,const uint8_t *p,int64_t now,c
     unsigned used=0;uint32_t c=kse_utf8(v+e->program_at,e->text_remaining,&used);
     if(!c){e->program_active=false;e->program_steps=0;e->text_remaining=0;return;}
     e->program_at+=used;e->text_remaining-=used;
-    if(c==9||c==10){ex_output(r,p,c==9?43:40,now,0,false,io);return;}
+    if(c==9||c==10){ex_program_press(r,p,c==9?43:40,now,0,false,io);return;}
     struct ksl_output out;
     if(c<0x3000&&ksl_resolve(p,r->active,0x8000|c,0,false,&out)&&!out.unicode)
-        ex_output(r,p,0x8000|c,now,0,false,io);
+        ex_program_press(r,p,0x8000|c,now,0,false,io);
     else ex_unicode_value(r,p,c,e->unicode_mode[r->active],now,io);
 }
 static struct kse_edge *ex_edge(struct kse_runtime *e,unsigned pos){for(unsigned i=0;i<32;i++)if(!e->edges[i].used){e->edges[i]=(struct kse_edge){.pos=pos,.used=true};return &e->edges[i];}return NULL;}
@@ -146,7 +210,7 @@ static bool ex_event(struct ksl_runtime *r,const uint8_t *p,unsigned pos,uint16_
         else if(down){e->swap=code==KSE_SWAP?!e->swap:code!=0x56f4;e->swap_once=code==0x56f6;}
         return true;
     }
-    if(code==KSE_LEADER){if(down){e->program_active=false;e->program_steps=0;e->text_remaining=0;e->leader=true;e->leader_count=0;e->leader_due=now+ex16(v+16);}return true;}
+    if(code==KSE_LEADER){if(down){ex_program_release(r,io);e->program_active=false;e->program_steps=0;e->text_remaining=0;e->leader=true;e->leader_count=0;e->leader_due=now+ex16(v+16);}return true;}
     // Count logical Shift presses, not just HID bits: both home-row keys may
     // intentionally use Left Shift. Caps Word itself clears those HID bits.
     if(down&&shift&&e->shifts[shift-1]<255)e->shifts[shift-1]++;
@@ -224,6 +288,7 @@ static void ex_tick(struct ksl_runtime *r,const uint8_t *p,int64_t now,uint8_t m
 }
 static void ex_cancel(struct ksl_runtime *r,const struct ksl_io *io){
     struct kse_runtime *e=&r->extended;
+    ex_program_release(r,io);
     if(e->unicode_count&&io->sequence){
         if(e->unicode_restore_locks&2)io->sequence(io->context,57,0,false);
         if(e->unicode_restore_locks&1)io->sequence(io->context,83,0,false);

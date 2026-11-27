@@ -7,18 +7,24 @@
 #include <zmk/event_manager.h>
 #include <zmk/events/activity_state_changed.h>
 #include <string.h>
-static atomic_t idle_ms=300000,sleep_ms=3600000,display_blank=1,light_factor=255;
+static atomic_t idle_ms=300000,sleep_ms=3600000,display_blank=1,display_dark=0,light_factor=255;
 uint32_t ks_power_idle_ms(void){return atomic_get(&idle_ms);}
 uint32_t ks_power_sleep_ms(void){return atomic_get(&sleep_ms);}
 bool ks_power_display_blank(void){return atomic_get(&display_blank);}
+bool ks_power_display_dark(void){return atomic_get(&display_dark);}
 uint8_t ks_power_factor(void){return atomic_get(&light_factor);}
+__attribute__((weak)) void ks_mip_theme_changed(void){}
 static void apply(const uint8_t p[6]){
  atomic_set(&idle_ms,kspw_policy_idle(p));atomic_set(&sleep_ms,kspw_policy_sleep(p));
- atomic_set(&display_blank,!(p[3]&1));atomic_set(&light_factor,kspw_policy_factor(p));
+ atomic_set(&display_blank,!(p[3]&1));atomic_set(&display_dark,kspw_policy_display_dark(p));
+ atomic_set(&light_factor,kspw_policy_factor(p));
 }
 #if IS_ENABLED(CONFIG_KEEBART_STUDIO)
 extern void ks_power_options(uint8_t out[6]);
 extern void ks_power_flush(void);
+void ks_power_sync_display_dark(bool dark){
+ if(atomic_set(&display_dark,dark?1:0)!=(dark?1:0))ks_mip_theme_changed();
+}
 void ks_power_packet(uint8_t out[12]){
  out[0]='P';out[1]='W';out[2]=1;out[3]=6;ks_power_options(out+4);
  uint16_t crc=kspw_policy_crc(out,10);out[10]=crc;out[11]=crc>>8;
@@ -50,11 +56,14 @@ static void run(void *a,void *b,void *c){
   if(k_msgq_get(&power_updates,p,K_MSEC(250)))memcpy(p,previous,6);
 #endif
   if(kspw_policy_valid(p)&&memcmp(p,previous,6)){
-   bool display_changed=(p[3]^previous[3])&1;apply(p);memcpy(previous,p,6);
+   bool display_changed=(p[3]^previous[3])&1;
+   bool theme_changed=(p[3]^previous[3])&4;
+   apply(p);memcpy(previous,p,6);
 #if !IS_ENABLED(CONFIG_KEEBART_STUDIO)
    dirty=true;changed=k_uptime_get();
 #endif
    if(display_changed)raise_zmk_activity_state_changed((struct zmk_activity_state_changed){.state=zmk_activity_get_state()});
+   if(theme_changed)ks_mip_theme_changed();
   }
 #if !IS_ENABLED(CONFIG_KEEBART_STUDIO)
   if(dirty&&k_uptime_get()-changed>=3000){

@@ -21,12 +21,14 @@ struct ksl_io {
     void (*replay)(void *,unsigned,uint16_t,bool,int64_t);
     uint16_t (*lookup)(void *,unsigned,uint16_t); // buffered physical press, current layers
     void (*stroke)(void *,uint8_t,bool); // held HID key; 0 refreshes modifier state
-
+    uint8_t (*layer)(void *,unsigned); // originating layer for physical press
+    // Returns true when normal Character output should proceed (false if overridden).
+    bool (*override)(void *,uint16_t,uint8_t,bool);
 };
 struct ksl_held {
     unsigned position;
     uint16_t code, hold, tap, output;
-    uint8_t flags;
+    uint8_t flags, layer;
     int64_t due, started;
     bool used, resolved, forwarded, tap_active, interrupted;
 };
@@ -49,7 +51,7 @@ struct ksl_runtime {
     uint16_t last_press_code, last_tap_code;
     bool last_press_valid, last_tap_valid;
     struct ksl_held held[KSL_HELD];
-    uint8_t active, requested;
+    uint8_t active, requested, active_layer;
     uint16_t layer_inputs[KSL_LAYER_RULES], layer_state;
     uint8_t layer_targets[KSL_LAYER_RULES];
     bool switching, guarded, sentence_default;

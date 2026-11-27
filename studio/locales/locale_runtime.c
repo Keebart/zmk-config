@@ -36,6 +36,11 @@ static void layer_sync(struct ksl_runtime *r,const struct ksl_io *io){
     for(unsigned i=1;i<16;i++)if((previous&~desired)&(1u<<i))io->action(io->context,0x5220+i,false);
     for(unsigned i=1;i<16;i++)if((desired&~previous)&(1u<<i))io->action(io->context,0x5220+i,true);
 }
+static void action_on(struct ksl_runtime *r,uint8_t layer,uint16_t code,bool down,const struct ksl_io *io){
+    uint8_t prior=r->active_layer;r->active_layer=layer;
+    io->action(io->context,code,down);
+    r->active_layer=prior;
+}
 void ksl_emit_character(const uint8_t *p,unsigned active,uint16_t code,uint8_t mods,bool caps,const struct ksl_io *io){
     struct ksl_output out;
     uint8_t added=io->mods?(mods&~io->mods(io->context)):0;
@@ -92,11 +97,12 @@ void ksl_character_release(struct ksl_runtime *r,uint16_t code,const struct ksl_
         return;
     }
 }
-static bool character(struct ksl_runtime *r,const uint8_t *p,unsigned active,uint16_t code,bool down,bool resolved,int64_t now,uint8_t mods,bool caps,const struct ksl_io *io){
+static bool character(struct ksl_runtime *r,const uint8_t *p,unsigned active,uint8_t layer,uint16_t code,bool down,bool resolved,int64_t now,uint8_t mods,bool caps,const struct ksl_io *io){
     // Physical compound keys are deliberately ignored by extended actions.
     // Process their resolved Character exactly once, as for resolved raw keys.
     if(resolved&&io->mods)mods=io->mods(io->context);
     if(resolved&&ex_event(r,p,0x30000U+code,code,down,now,mods,caps,io))return true;
+    if(!r->extended.emitting&&io->override&&!io->override(io->context,code,layer,down))return true;
     if(io->character)return io->character(io->context,code,down,resolved);
     if(down){
         if(io->mods)mods=io->mods(io->context);
@@ -104,7 +110,7 @@ static bool character(struct ksl_runtime *r,const uint8_t *p,unsigned active,uin
     }
     return false;
 }
-static void output(struct ksl_runtime *r,const uint8_t *p,unsigned active,uint16_t code,int64_t now,uint8_t mods,bool caps,const struct ksl_io *io){
+static void output(struct ksl_runtime *r,const uint8_t *p,unsigned active,uint8_t layer,uint16_t code,int64_t now,uint8_t mods,bool caps,const struct ksl_io *io){
     if(ksl_shortcut(code)){
         uint16_t resolved=ksl_shortcut_code(p,active,code);
         if(!resolved)return;
@@ -113,13 +119,13 @@ static void output(struct ksl_runtime *r,const uint8_t *p,unsigned active,uint16
         ex_action(r,resolved,false,io);return;
     }
     if(!ksl_character(code)){
-        io->action(io->context,code,true);
+        action_on(r,layer,code,true,io);
         tap_pause(p,code,io);
-        io->action(io->context,code,false);return;
+        action_on(r,layer,code,false,io);return;
     }
-    bool held=character(r,p,active,code,true,true,now,mods,caps,io);
+    bool held=character(r,p,active,layer,code,true,true,now,mods,caps,io);
     if(held)tap_pause(p,code,io);
-    character(r,p,active,code,false,true,now,mods,caps,io);
+    character(r,p,active,layer,code,false,true,now,mods,caps,io);
 }
 static bool busy(const struct ksl_runtime *r){if(r->guarded||r->deferred_count||r->extended.unicode_count||r->extended.leader||r->extended.program_active)return true;for(unsigned i=0;i<KSL_HELD;i++)if(r->held[i].used)return true;return false;}
 static void switch_ready(struct ksl_runtime *r){if(r->switching&&!busy(r)){r->active=r->requested;r->switching=false;}}
@@ -151,32 +157,32 @@ bool ksl_select(struct ksl_runtime *r,const uint8_t *p,unsigned selected){
 }
 static void hold_start(struct ksl_runtime *r,struct ksl_held *h,const uint8_t *p,int64_t now,uint8_t mods,bool caps,const struct ksl_io *io){
     h->resolved=true;h->due=INT64_MAX;
-    if(ksl_character(h->hold)){if(!character(r,p,r->active,h->hold,true,true,now,mods,caps,io))h->due=now+500;}
+    if(ksl_character(h->hold)){if(!character(r,p,r->active,h->layer,h->hold,true,true,now,mods,caps,io))h->due=now+500;}
     else if(ksl_shortcut(h->hold)){h->output=ksl_shortcut_code(p,r->active,h->hold);if(h->output)ex_action(r,h->output,true,io);}
     else if(h->hold>=KSL_SELECT&&h->hold<=KSL_PREVIOUS){if(p[4])ksl_select(r,p,h->hold==KSL_NEXT?(r->active+1)%p[4]:h->hold==KSL_PREVIOUS?(r->active+p[4]-1)%p[4]:h->hold-KSL_SELECT);}
     else if(managed_layer(r,h->hold))layer_sync(r,io);
-    else io->action(io->context,h->hold,true);
+    else action_on(r,h->layer,h->hold,true,io);
 }
 static void hold_end(struct ksl_runtime *r,struct ksl_held *h,const struct ksl_io *io){
-    if(ksl_character(h->hold)){if(!ex_release(r,0x30000U+h->hold,io)&&io->character)io->character(io->context,h->hold,false,true);return;}
+    if(ksl_character(h->hold)){if(!ex_release(r,0x30000U+h->hold,io)){if(!r->extended.emitting&&io->override&&!io->override(io->context,h->hold,h->layer,false))return;if(io->character)io->character(io->context,h->hold,false,true);}return;}
     if(ksl_shortcut(h->hold)){if(h->output)ex_action(r,h->output,false,io);return;}
     if(managed_layer(r,h->hold)){layer_sync(r,io);return;}
-    if(!ksl_character(h->hold)&&!(h->hold>=KSL_SELECT&&h->hold<=KSL_PREVIOUS))io->action(io->context,h->hold,false);
+    if(!ksl_character(h->hold)&&!(h->hold>=KSL_SELECT&&h->hold<=KSL_PREVIOUS))action_on(r,h->layer,h->hold,false,io);
 }
 static void tap_start(struct ksl_runtime *r,struct ksl_held *h,const uint8_t *p,int64_t now,uint8_t mods,bool caps,const struct ksl_io *io){
     h->tap_active=true;h->due=INT64_MAX;
-    if(ksl_character(h->tap)){if(!character(r,p,r->active,h->tap,true,true,now,mods,caps,io))h->due=now+500;}
+    if(ksl_character(h->tap)){if(!character(r,p,r->active,h->layer,h->tap,true,true,now,mods,caps,io))h->due=now+500;}
     else if(ksl_shortcut(h->tap)){h->output=ksl_shortcut_code(p,r->active,h->tap);if(h->output)ex_action(r,h->output,true,io);}
     else if(h->tap>=KSL_SELECT&&h->tap<=KSL_PREVIOUS){
         if(p[4])ksl_select(r,p,h->tap==KSL_NEXT?(r->active+1)%p[4]:h->tap==KSL_PREVIOUS?(r->active+p[4]-1)%p[4]:h->tap-KSL_SELECT);
     }else if(managed_layer(r,h->tap))layer_sync(r,io);
-    else io->action(io->context,h->tap,true);
+    else action_on(r,h->layer,h->tap,true,io);
 }
 static void tap_end(struct ksl_runtime *r,const struct ksl_held *h,const struct ksl_io *io){
-    if(ksl_character(h->tap)){if(!ex_release(r,0x30000U+h->tap,io)&&io->character)io->character(io->context,h->tap,false,true);return;}
+    if(ksl_character(h->tap)){if(!ex_release(r,0x30000U+h->tap,io)){if(!r->extended.emitting&&io->override&&!io->override(io->context,h->tap,h->layer,false))return;if(io->character)io->character(io->context,h->tap,false,true);}return;}
     if(ksl_shortcut(h->tap)){if(h->output)ex_action(r,h->output,false,io);return;}
     if(managed_layer(r,h->tap))layer_sync(r,io);
-    else if(!ksl_character(h->tap)&&!(h->tap>=KSL_SELECT&&h->tap<=KSL_PREVIOUS))io->action(io->context,h->tap,false);
+    else if(!ksl_character(h->tap)&&!(h->tap>=KSL_SELECT&&h->tap<=KSL_PREVIOUS))action_on(r,h->layer,h->tap,false,io);
 }
 static void replay(const struct ksl_io *io,unsigned pos,uint16_t code,bool down,int64_t now){
     if(io->replay)io->replay(io->context,pos,code,down,now);else io->action(io->context,code,down);
@@ -214,12 +220,19 @@ void ksl_tick(struct ksl_runtime *r,const uint8_t *p,int64_t now,uint8_t mods,bo
     for(unsigned i=0;i<KSL_HELD;i++){
         struct ksl_held *h=&r->held[i];if(!h->used||now<h->due)continue;
         if(h->tap_active){
-            if(ksl_character(h->tap)){output(r,p,r->active,h->tap,now,mods,caps,io);h->due=now+33;}
+            if(ksl_character(h->tap)){output(r,p,r->active,h->layer,h->tap,now,mods,caps,io);h->due=now+33;}
         }else if(h->hold){
             if(!h->resolved)hold_start(r,h,p,now,mods,caps,io);
-            else if(ksl_character(h->hold)){output(r,p,r->active,h->hold,now,mods,caps,io);h->due=now+33;}
+            else if(ksl_character(h->hold)){output(r,p,r->active,h->layer,h->hold,now,mods,caps,io);h->due=now+33;}
         }
-        else if(ksl_character(h->code)){output(r,p,r->active,h->code,now,mods,caps,io);h->due=now+33;}
+        else if(ksl_character(h->code)){
+            if(h->position>=0x20000U&&h->position<0x30000U){
+                bool held=io->character?io->character(io->context,h->code,true,true):(ksl_emit_character(p,r->active,h->code,io->mods?io->mods(io->context):mods,caps,io),false);
+                if(held)tap_pause(p,h->code,io);
+                if(io->character)io->character(io->context,h->code,false,true);
+            }else output(r,p,r->active,h->layer,h->code,now,mods,caps,io);
+            h->due=now+33;
+        }
     }drain(r,p,now,mods,caps,io);switch_ready(r);
 }
 static bool event(struct ksl_runtime *r,const uint8_t *p,unsigned pos,uint16_t code,bool down,int64_t now,uint8_t mods,bool caps,const struct ksl_io *io,bool force_tap){
@@ -245,12 +258,15 @@ static bool event(struct ksl_runtime *r,const uint8_t *p,unsigned pos,uint16_t c
                     if(tapped){
                         uint16_t tap=released.tap;
                         if(tap>=KSL_SELECT&&tap<=KSL_PREVIOUS){if(p[4])ksl_select(r,p,tap==KSL_NEXT?(r->active+1)%p[4]:tap==KSL_PREVIOUS?(r->active+p[4]-1)%p[4]:tap-KSL_SELECT);}
-                        else output(r,p,r->active,tap,now,mods,caps,io);
+                        else output(r,p,r->active,released.layer,tap,now,mods,caps,io);
                     }
                 }
                 if(tapped){r->last_tap_valid=true;r->last_tap_position=pos;r->last_tap_code=released.code;r->last_tap_time=now;}
             }
-            if(!released.hold&&ksl_character(released.code))character(r,p,r->active,released.code,false,false,now,mods,caps,io);
+            if(!released.hold&&ksl_character(released.code)){
+                if(pos<0x20000U)for(unsigned i=0;i<KSL_HELD;i++)if(r->held[i].used&&r->held[i].position>=0x20000U&&r->held[i].position<0x30000U&&r->held[i].code==released.code)memset(&r->held[i],0,sizeof(r->held[i]));
+                character(r,p,r->active,released.layer,released.code,false,false,now,mods,caps,io);
+            }
             if(!released.hold&&ksl_shortcut(released.code)&&released.output)ex_action(r,released.output,false,io);
             layer_sync(r,io);
             switch_ready(r);
@@ -261,9 +277,10 @@ static bool event(struct ksl_runtime *r,const uint8_t *p,unsigned pos,uint16_t c
     if(code>=KSL_SELECT&&code<=KSL_PREVIOUS){if(p[4])ksl_select(r,p,code==KSL_NEXT?(r->active+1)%p[4]:code==KSL_PREVIOUS?(r->active+p[4]-1)%p[4]:code-KSL_SELECT);return true;}
     if(found)return ksl_supported(code)||managed_layer(r,code)||ksl_managed_layer_tap(r,code);
     if(!free)return ksl_supported(code)||managed_layer(r,code)||ksl_managed_layer_tap(r,code);
-    *free=(struct ksl_held){.position=pos,.code=code,.due=INT64_MAX,.started=now,.used=true};
+    uint8_t layer=io->layer?io->layer(io->context,pos):0;
+    *free=(struct ksl_held){.position=pos,.code=code,.layer=layer,.due=INT64_MAX,.started=now,.used=true};
     if(managed_layer(r,code)){layer_sync(r,io);return true;}
-    if(ksl_character(code)){if(!character(r,p,r->active,code,true,false,now,mods,caps,io))free->due=now+500;return true;}
+    if(ksl_character(code)){if(!character(r,p,r->active,layer,code,true,false,now,mods,caps,io))free->due=now+500;return true;}
     if(ksl_shortcut(code)){free->output=ksl_shortcut_code(p,r->active,code);if(free->output)ex_action(r,free->output,true,io);return true;}
     if((code>=KSL_COMPOUND&&code<KSL_COMPOUND+KSL_ACTIONS)||ksl_managed_layer_tap(r,code)){
         free->tap=hold_field(r,p,code,0);free->hold=hold_field(r,p,code,1);free->due=now+hold_field(r,p,code,2);free->flags=hold_field(r,p,code,3);

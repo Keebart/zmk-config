@@ -105,3 +105,4 @@ uint16_t get_autoshift_timeout(uint16_t code, keyrecord_t *record) {
     const uint8_t *t = ks_typing_config();
     return t[2] | ((uint16_t)t[3] << 8);
 }
+bool ks_word_active(void) { return is_caps_word_on(); }
